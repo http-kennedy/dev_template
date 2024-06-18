@@ -4,3 +4,4 @@ __pycache__/
 dev_template_venv/
 build/
 src/dev_template.egg-info/
+dist/
