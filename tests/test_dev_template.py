@@ -5,7 +5,7 @@ import sys
 from unittest.mock import call, patch
 
 import pytest
-from src.dev_template import (
+from src.module.dev_template import (
     create_basic_files,
     create_project_directory,
     create_subdirectories,
