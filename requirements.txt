@@ -1,0 +1,4 @@
+pydantic
+tqdm
+colorama
+valid8
