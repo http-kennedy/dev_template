@@ -14,10 +14,8 @@ A module to quickly generate a basic Python project template.
 * Prebuilds setup.py
 * Prebuilds pyproject.toml
 
-## Example Usage
-  <a href="https://github.com/http-kennedy/dev_template/blob/main/images/dev_template.gif">
-    <img src="https://github.com/http-kennedy/dev_template/blob/main/images/dev_template.gif" alt="Example Usage"/>
-  </a>
+## Example Demo
+![Demo GIF](https://raw.githubusercontent.com/http-kennedy/dev_template/main/images/dev_template.gif)
 
 ## Example Project Structure
 
