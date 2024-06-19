@@ -7,6 +7,28 @@ A module to quickly generate a basic Python project template.
 * Creates a basic python project template
 * Initalizes a virtual environment for the project
 * Ability to add user-defined packages during setup
+* Installs required (pydantic, pytest) and user defined packages into venv
+* Standard Python .gitignore (also ignores _venv directory)
+* Adds required (pydantic, pytest) and user defined packages to requirements.txt
+* Imorts user defined packages during setup to src/main.py
+* Prebuilds setup.py
+
+## Example Project Structure
+
+```
+project
+├── project_venv
+├── src
+│   ├── __init__.py
+│   └── main.py
+├── tests
+│   ├── __init__.py
+│   └── test_main.py
+├── .gitignore
+├── README.md
+├── requirements.txt
+└── setup.py
+```
 
 ## Installation
 
@@ -28,4 +50,23 @@ or
 
 ```bash
 python3 -m module.dev_template
+```
+
+Once project setup is done navigate into the project directory and type the following command to activate the venv:
+* the folder that has the venv is named after your project. In this example we are using `project`
+
+Linux
+```bash
+source project_venv/bin/activate
+```
+
+Powershell
+```bash
+project_venv\bin\Activate.ps1
+```
+
+To deactivate the venv type the following command into your terminal:
+
+```bash
+deactivate
 ```

@@ -1,5 +1,3 @@
-# src/module/dev_template.py
-
 import os
 import subprocess
 import sys
@@ -157,6 +155,7 @@ def install_packages(
     full_project_path: str, project_name: str, additional_packages: list
 ) -> None:
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
+    bin_dir = "Scripts" if os.name == "nt" else "bin"
     all_packages = ["pydantic", "pytest"] + additional_packages
     successful_packages = []
     failed_packages = []
@@ -170,7 +169,7 @@ def install_packages(
         for package in all_packages:
             try:
                 subprocess.check_call(
-                    [os.path.join(venv_path, "bin", "pip"), "install", package],
+                    [os.path.join(venv_path, bin_dir, "pip"), "install", package],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
