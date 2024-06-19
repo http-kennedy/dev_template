@@ -1,6 +1,6 @@
 # dev_template
 
-A module to quickly generate a basic Python project template.
+A module to quickly generate a basic Python project template without the fluff.
 
 ## Features
 
@@ -42,7 +42,7 @@ project
 To install the package, use pip:
 
 ```bash
-pip3 install dev-template
+pip install dev-template
 ```
 
 ## Usage
@@ -56,7 +56,7 @@ dev_template
 or
 
 ```bash
-python3 -m module.dev_template
+python -m module.dev_template
 ```
 
 Once project setup is done navigate into the project directory and type the following command to activate the venv:

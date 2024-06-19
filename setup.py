@@ -14,7 +14,7 @@ with open(requirements_path, encoding="utf-8") as f:
 
 setup(
     name="dev_template",
-    version="0.1.8",
+    version="1.0.0",
     description="A module to generate a Python project template.",
     long_description=long_description,
     long_description_content_type="text/markdown",
