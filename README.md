@@ -12,6 +12,7 @@ A module to quickly generate a basic Python project template.
 * Adds required (pydantic, pytest) and user defined packages to requirements.txt
 * Imorts user defined packages during setup to src/main.py
 * Prebuilds setup.py
+* Prebuilds pyproject.toml
 
 ## Example Project Structure
 
@@ -19,15 +20,18 @@ A module to quickly generate a basic Python project template.
 project
 ├── project_venv
 ├── src
-│   ├── __init__.py
-│   └── main.py
+│   └── project
+│       ├── __init__.py
+│       └── main.py
 ├── tests
 │   ├── __init__.py
 │   └── test_main.py
 ├── .gitignore
 ├── README.md
 ├── requirements.txt
-└── setup.py
+├── setup.py
+└── pyproject.toml
+
 ```
 
 ## Installation

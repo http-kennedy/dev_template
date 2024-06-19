@@ -3,9 +3,9 @@ import subprocess
 import sys
 from typing import List
 
-import tqdm
 from colorama import Fore, Style, init
 from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
+from tqdm import tqdm
 
 CYAN = Fore.CYAN
 PURPLE = Fore.MAGENTA
@@ -62,7 +62,7 @@ def create_project_structure(config: ProjectConfig) -> None:
     print(f"{PURPLE}Creating project directory - Done{RESET}\n")
 
     print(f"{CYAN}Creating subdirectories...{RESET}")
-    create_subdirectories(full_project_path)
+    create_subdirectories(full_project_path, config.project_name)
     print(f"{PURPLE}Creating subdirectories - Done{RESET}\n")
 
     create_basic_files(full_project_path, config.project_name)
@@ -79,8 +79,8 @@ def create_project_directory(full_project_path: str) -> None:
         raise ValueError(f"Could not create project directory: {e}")
 
 
-def create_subdirectories(full_project_path: str) -> None:
-    os.makedirs(os.path.join(full_project_path, "src"), exist_ok=True)
+def create_subdirectories(full_project_path: str, project_name: str) -> None:
+    os.makedirs(os.path.join(full_project_path, "src", project_name), exist_ok=True)
     os.makedirs(os.path.join(full_project_path, "tests"), exist_ok=True)
 
 
@@ -88,7 +88,7 @@ def create_basic_files(full_project_path: str, project_name: str) -> None:
     files_content = {
         "README.md": f"# {project_name.capitalize()}\n",
         ".gitignore": f"__pycache__/\n*.pyc\n.env\n{project_name}_venv/\n",
-        "requirements.txt": "pydantic\npytest\n",
+        "requirements.txt": "pydantic\npytest\nsetuptools\nwheel\n",
         "setup.py": f"""from setuptools import setup, find_packages
 
 setup(
@@ -99,15 +99,15 @@ setup(
     install_requires=[],
     entry_points={{
         "console_scripts": [
-            "{project_name} = src.main:main",
+            "{project_name} = src.{project_name}.main:main",
         ],
     }},
 )
 """,
-        "src/__init__.py": """# src/__init__.py
+        f"src/{project_name}/__init__.py": f"""# src/{project_name}/__init__.py
 # This file is intentionally left blank.
 """,
-        "src/main.py": """import pydantic
+        f"src/{project_name}/main.py": """import pydantic
 
 def main():
     print("Hello, World!")
@@ -123,6 +123,29 @@ if __name__ == "__main__":
 def test_example():
     assert True
 """,
+        "pyproject.toml": f"""
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{project_name}"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+license = {{text = ""}}
+authors = []
+
+[project.urls]
+Homepage = "https://example.com"
+Repository = "https://example.com/repository"
+
+[project.dependencies]
+pydantic = "*"
+pytest = "*"
+setuptools = "*"
+wheel = "*"
+""",
     }
 
     with tqdm(
@@ -130,11 +153,11 @@ def test_example():
         desc=f"{CYAN}Creating basic files{RESET}",
         ncols=100,
         leave=True,
-    ) as pbar:
+    ) as progress_bar:
         for filename, content in files_content.items():
             with open(os.path.join(full_project_path, filename), "w") as f:
                 f.write(content)
-            pbar.update(1)
+            progress_bar.update(1)
     print(f"{PURPLE}Creating basic files - Done{RESET}\n")
 
 
@@ -145,9 +168,9 @@ def create_virtualenv(full_project_path: str, project_name: str) -> None:
         desc=f"{CYAN}Creating virtual environment{RESET}",
         ncols=100,
         leave=True,
-    ) as pbar:
+    ) as progress_bar:
         subprocess.check_call([sys.executable, "-m", "venv", venv_path])
-        pbar.update(1)
+        progress_bar.update(1)
     print(f"{PURPLE}Creating virtual environment - Done{RESET}\n")
 
 
@@ -156,7 +179,7 @@ def install_packages(
 ) -> None:
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     bin_dir = "Scripts" if os.name == "nt" else "bin"
-    all_packages = ["pydantic", "pytest"] + additional_packages
+    all_packages = ["pydantic", "pytest", "setuptools", "wheel"] + additional_packages
     successful_packages = []
     failed_packages = []
 
@@ -165,7 +188,7 @@ def install_packages(
         desc=f"{CYAN}Installing packages{RESET}",
         ncols=100,
         leave=True,
-    ) as pbar:
+    ) as progress_bar:
         for package in all_packages:
             try:
                 subprocess.check_call(
@@ -176,7 +199,7 @@ def install_packages(
                 successful_packages.append(package)
             except subprocess.CalledProcessError:
                 failed_packages.append(package)
-            pbar.update(1)
+            progress_bar.update(1)
 
     if successful_packages:
         cyan_packages = ", ".join(
@@ -194,14 +217,21 @@ def install_packages(
             if package in successful_packages:
                 f.write(f"{package}\n")
 
-    with open(os.path.join(full_project_path, "src/main.py"), "r") as f:
+    main_py_path = os.path.join(full_project_path, f"src/{project_name}/main.py")
+    with open(main_py_path, "r") as f:
         main_py_content = f.read()
 
-    with open(os.path.join(full_project_path, "src/main.py"), "w") as f:
+    with open(main_py_path, "w") as f:
         for package in additional_packages:
             if package in successful_packages:
                 f.write(f"import {package}\n")
         f.write(main_py_content)
+
+    pyproject_toml_path = os.path.join(full_project_path, "pyproject.toml")
+    with open(pyproject_toml_path, "a") as f:
+        for package in additional_packages:
+            if package in successful_packages:
+                f.write(f'{package} = "*"\n')
 
     print(f"{PURPLE}Installing packages - Done{RESET}\n")
 
