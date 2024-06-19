@@ -62,7 +62,7 @@ source project_venv/bin/activate
 
 Powershell
 ```bash
-project_venv\bin\Activate.ps1
+.\project_venv\Scripts\Activate.ps1
 ```
 
 To deactivate the venv type the following command into your terminal:
