@@ -18,7 +18,13 @@ pip3 install dev-template
 
 ## Usage
 
-After installing, you can run the module using:
+Once installed type the following command into your terminal:
+
+```bash
+dev_template
+```
+
+or
 
 ```bash
 python3 -m module.dev_template
