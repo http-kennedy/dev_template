@@ -14,6 +14,12 @@ A module to quickly generate a basic Python project template without the fluff.
 * Prebuilds setup.py
 * Prebuilds pyproject.toml
 
+## Future Features
+
+* User defined config to prefill values (default project directory, default packages to install)
+* Utilize template directories for user specific pyproject.toml/setup.py
+* Option to skip generating pyproject.toml/setup.py
+
 ## Example Demo
 ![Demo GIF](https://raw.githubusercontent.com/http-kennedy/dev_template/main/images/dev_template.gif)
 
