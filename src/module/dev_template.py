@@ -3,9 +3,9 @@ import subprocess
 import sys
 from typing import List
 
+import tqdm
 from colorama import Fore, Style, init
 from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
-from tqdm import tqdm
 
 CYAN = Fore.CYAN
 PURPLE = Fore.MAGENTA
