@@ -257,7 +257,7 @@ def main():
             init(autoreset=True)
             print_formatted_text(
                 HTML(
-                    f"<cyan>{'='*30}</cyan>\n<cyan>{',-> Python | dev_template | Setup <-':^30}</cyan>\n<cyan>{'='*30}</cyan>"
+                    f"<cyan>{'='*30}</cyan>\n<cyan>{'Python dev_template Setup':^30}</cyan>\n<cyan>{'='*30}</cyan>"
                 )
             )
 
