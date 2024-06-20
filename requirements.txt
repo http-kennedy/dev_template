@@ -1,3 +1,4 @@
 pydantic
 tqdm
 colorama
+prompt_toolkit

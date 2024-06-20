@@ -4,6 +4,9 @@ import sys
 from typing import List
 
 from colorama import Fore, Style, init
+from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit.completion import PathCompleter
+from prompt_toolkit.formatted_text import HTML
 from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
 from tqdm import tqdm
 
@@ -203,12 +206,14 @@ def install_packages(
 
     if successful_packages:
         cyan_packages = ", ".join(
-            [f"{CYAN}{pkg}{RESET}" for pkg in successful_packages]
+            [f"{CYAN}{package}{RESET}" for package in successful_packages]
         )
         print(f"{PURPLE}Successfully installed packages{WHITE}: {cyan_packages}{RESET}")
 
     if failed_packages:
-        white_packages = ", ".join([f"{WHITE}{pkg}{RESET}" for pkg in failed_packages])
+        white_packages = ", ".join(
+            [f"{WHITE}{package}{RESET}" for package in failed_packages]
+        )
         print(f"{RED}Failed to install packages{WHITE}: {white_packages}{RESET}")
 
     # add successful user-defined packages to requirements.txt and import into src/main.py (exclude pydantic and pytest which are already added)
@@ -236,16 +241,34 @@ def install_packages(
     print(f"{PURPLE}Installing packages - Done{RESET}\n")
 
 
+def prompt_with_path_completion(prompt_text: str) -> str:
+    session = PromptSession()
+    return session.prompt(HTML(prompt_text), completer=PathCompleter())
+
+
+def prompt_with_simple_completion(prompt_text: str) -> str:
+    session = PromptSession()
+    return session.prompt(HTML(prompt_text))
+
+
 def main():
     while True:
         try:
             init(autoreset=True)
-            print(f"{CYAN}{'='*30}\n{'Python Project Setup':^30}\n{'='*30}")
+            print_formatted_text(
+                HTML(
+                    f"<cyan>{'='*30}</cyan>\n<cyan>{',-> Python | dev_template | Setup <-':^30}</cyan>\n<cyan>{'='*30}</cyan>"
+                )
+            )
 
             while True:
-                project_name = input(f"{YELLOW}Enter the project name: {RESET}")
+                project_name = prompt_with_simple_completion(
+                    "<yellow>Enter the project name: </yellow>"
+                )
                 if not project_name.strip():
-                    print(f"{RED}Error: Project name cannot be empty{RESET}")
+                    print_formatted_text(
+                        HTML("<red>Error: Project name cannot be empty</red>")
+                    )
                     continue
                 try:
                     _ = ProjectConfig(
@@ -255,23 +278,31 @@ def main():
                     )
                     break
                 except ValidationError as e:
-                    print(f"{RED}Error: {e.errors()[0]['msg']}{RESET}")
+                    print_formatted_text(
+                        HTML(f"<red>Error: {e.errors()[0]['msg']}</red>")
+                    )
 
             while True:
-                project_path = input(
-                    f"\n{YELLOW}Enter the fully qualified path to create the project: {RESET}"
+                project_path = prompt_with_path_completion(
+                    "<yellow>Enter the fully qualified path to create the project: </yellow>"
                 )
                 if not project_path:
-                    print(f"{RED}Error: Fully qualified path cannot be empty{RESET}")
+                    print_formatted_text(
+                        HTML("<red>Error: Fully qualified path cannot be empty</red>")
+                    )
                     continue
                 if not os.path.exists(project_path):
-                    print(
-                        f"{RED}Error: The path '{project_path}' does not exist{RESET}"
+                    print_formatted_text(
+                        HTML(
+                            f"<red>Error: The path '{project_path}' does not exist</red>"
+                        )
                     )
                     continue
                 if not os.access(project_path, os.W_OK):
-                    print(
-                        f"{RED}Error: You do not have write permissions for the path '{project_path}'{RESET}"
+                    print_formatted_text(
+                        HTML(
+                            f"<red>Error: You do not have write permissions for the path '{project_path}'</red>"
+                        )
                     )
                     continue
                 try:
@@ -282,10 +313,12 @@ def main():
                     )
                     break
                 except ValidationError as e:
-                    print(f"{RED}Error: {e.errors()[0]['msg']}{RESET}")
+                    print_formatted_text(
+                        HTML(f"<red>Error: {e.errors()[0]['msg']}</red>")
+                    )
 
-            additional_packages = input(
-                f"\n{YELLOW}Enter additional packages to install (comma separated): {RESET}"
+            additional_packages = prompt_with_simple_completion(
+                "<yellow>Enter additional packages to install (comma separated): </yellow>"
             ).split(",")
             additional_packages = [
                 pkg.strip() for pkg in additional_packages if pkg.strip()
@@ -302,19 +335,23 @@ def main():
 
             full_project_path = os.path.join(project_path, project_name)
 
-            print(
-                f"\n{PURPLE}Setting up project '{CYAN}{project_name}{PURPLE}' at '{CYAN}{full_project_path}{PURPLE}'\n"
+            print_formatted_text(
+                HTML(
+                    f"\n<purple>Setting up project '<cyan>{project_name}</cyan>' at '<cyan>{full_project_path}</cyan>'</purple>\n"
+                )
             )
 
             create_project_structure(config)
 
-            print(
-                f"\n{PURPLE}Project '{CYAN}{project_name}{PURPLE}' created successfully at '{CYAN}{full_project_path}{PURPLE}'.{RESET}"
+            print_formatted_text(
+                HTML(
+                    f"\n<purple>Project '<cyan>{project_name}</cyan>' created successfully at '<cyan>{full_project_path}</cyan>'.</purple>"
+                )
             )
             break
 
         except (ValidationError, ValueError) as e:
-            print(f"{RED}Error: {str(e)}{RESET}")
+            print_formatted_text(HTML(f"<red>Error: {str(e)}</red>"))
             input(f"{YELLOW}Press Enter to try again...{RESET}")
 
 
