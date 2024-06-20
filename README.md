@@ -9,7 +9,7 @@ A module to quickly generate a basic Python project template without the fluff.
 * Ability to add user-defined packages during setup
 * Installs required (pydantic, pytest) and user defined packages into venv
 * Standard Python .gitignore (also ignores _venv directory)
-* Adds required (pydantic, pytest) and user defined packages to requirements.txt
+* Adds required (pydantic, pytest) and user defined packages to requirements.txt and pyproject.toml
 * Imports user defined packages during setup to main.py
 * Prebuilds setup.py
 * Prebuilds pyproject.toml
