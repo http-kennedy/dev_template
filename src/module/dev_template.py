@@ -1,4 +1,7 @@
+import argparse
+import configparser
 import os
+import platform
 import subprocess
 import sys
 from typing import List
@@ -9,6 +12,12 @@ from prompt_toolkit.completion import PathCompleter
 from prompt_toolkit.formatted_text import HTML
 from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
 from tqdm import tqdm
+
+""" TODO: 
+- utilize default_project_path from config.ini
+- utilize skip_setup from config.ini
+- utilize skip_pyproject from config.ini
+"""
 
 CYAN = Fore.CYAN
 PURPLE = Fore.MAGENTA
@@ -180,9 +189,15 @@ def create_virtualenv(full_project_path: str, project_name: str) -> None:
 def install_packages(
     full_project_path: str, project_name: str, additional_packages: list
 ) -> None:
+    default_packages = read_default_packages()
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     bin_dir = "Scripts" if os.name == "nt" else "bin"
-    all_packages = ["pydantic", "pytest", "setuptools", "wheel"] + additional_packages
+    all_packages = default_packages + additional_packages
+
+    if not all_packages:
+        print(f"{YELLOW}No packages to install. Skipping...{RESET}")
+        return
+
     successful_packages = []
     failed_packages = []
 
@@ -216,7 +231,6 @@ def install_packages(
         )
         print(f"{RED}Failed to install packages{WHITE}: {white_packages}{RESET}")
 
-    # add successful user-defined packages to requirements.txt and import into src/main.py (exclude pydantic and pytest which are already added)
     with open(os.path.join(full_project_path, "requirements.txt"), "a") as f:
         for package in additional_packages:
             if package in successful_packages:
@@ -241,6 +255,31 @@ def install_packages(
     print(f"{PURPLE}Installing packages - Done{RESET}\n")
 
 
+def get_config_path() -> str:
+    if platform.system() == "Windows":
+        config_path = os.path.join(
+            os.getenv("LOCALAPPDATA"), "dev_template", "config.ini"
+        )
+    else:
+        config_path = os.path.join(
+            os.path.expanduser("~"), ".config", "dev_template", "config.ini"
+        )
+    return config_path
+
+
+def read_default_packages() -> list:
+    config_path = get_config_path()
+    if not os.path.exists(config_path):
+        print(f"{RED}Configuration file not found at {config_path}{RESET}")
+        return []
+
+    config = configparser.ConfigParser()
+    config.read(config_path)
+
+    default_packages = config.get("DEFAULT", "default_packages", fallback="").split(",")
+    return [package.strip() for package in default_packages if package.strip()]
+
+
 def prompt_with_path_completion(prompt_text: str) -> str:
     session = PromptSession()
     return session.prompt(HTML(prompt_text), completer=PathCompleter())
@@ -251,13 +290,95 @@ def prompt_with_simple_completion(prompt_text: str) -> str:
     return session.prompt(HTML(prompt_text))
 
 
+def initialize_config() -> None:
+    config_path = get_config_path()
+    config_dir = os.path.dirname(config_path)
+
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+
+    if not os.path.exists(config_path):
+        config = configparser.ConfigParser()
+        config["DEFAULT"] = {
+            "default_packages": "",
+            "default_project_path": "",
+            "skip_setup": "0",
+            "skip_pyproject": "0",
+        }
+
+        with open(config_path, "w") as f:
+            config.write(f)
+
+
+def setup_config() -> None:
+    initialize_config()
+    config_path = get_config_path()
+    config = configparser.ConfigParser()
+    config.read(config_path)
+
+    default_packages = prompt_with_simple_completion(
+        "<yellow>Enter default packages to install (comma separated): </yellow>"
+    )
+    default_project_dir = prompt_with_path_completion(
+        "<yellow>Enter default project directory: </yellow>"
+    )
+
+    def get_bool_input(prompt_text: str) -> str:
+        while True:
+            value = prompt_with_simple_completion(prompt_text).strip().lower()
+            if value in {"yes", "y", "no", "n"}:
+                return "1" if value in {"yes", "y"} else "0"
+            else:
+                print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
+
+    skip_setup = get_bool_input("<yellow>Skip setup prompt? (Yes/Y or No/N): </yellow>")
+    skip_pyproject = get_bool_input(
+        "<yellow>Skip pyproject.toml prompt? (Yes/Y or No/N): </yellow>"
+    )
+
+    config["DEFAULT"]["default_packages"] = default_packages
+    config["DEFAULT"]["default_project_path"] = default_project_dir
+    config["DEFAULT"]["skip_setup"] = skip_setup
+    config["DEFAULT"]["skip_pyproject"] = skip_pyproject
+
+    with open(config_path, "w") as f:
+        config.write(f)
+    print(f"\n{PURPLE}Configuration updated at {config_path}{RESET}")
+
+
+def display_help() -> None:
+    help_text = """
+    Usage: dev_template [OPTIONS]
+
+    Options:
+      --config, -c      Setup configuration
+      --help, -h        Show this help message and exit
+    """
+    print(help_text)
+
+
 def main():
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--config", "-c", action="store_true", help="Setup configuration"
+    )
+    parser.add_argument("--help", "-h", action="store_true", help="Show help message")
+    args = parser.parse_args()
+
+    if args.config:
+        setup_config()
+        return
+    if args.help:
+        display_help()
+        return
+
+    initialize_config()
     while True:
         try:
             init(autoreset=True)
             print_formatted_text(
                 HTML(
-                    f"<cyan>{'='*30}</cyan>\n<cyan>{'Python dev_template Setup':^30}</cyan>\n<cyan>{'='*30}</cyan>"
+                    f"<cyan>{'='*30}</cyan>\n<cyan>{'Python Project Setup':^30}</cyan>\n<cyan>{'='*30}</cyan>"
                 )
             )
 
@@ -321,7 +442,7 @@ def main():
                 "<yellow>Enter additional packages to install (comma separated): </yellow>"
             ).split(",")
             additional_packages = [
-                pkg.strip() for pkg in additional_packages if pkg.strip()
+                package.strip() for package in additional_packages if package.strip()
             ]
 
             config = ProjectConfig(
@@ -353,7 +474,14 @@ def main():
         except (ValidationError, ValueError) as e:
             print_formatted_text(HTML(f"<red>Error: {str(e)}</red>"))
             input(f"{YELLOW}Press Enter to try again...{RESET}")
+        except KeyboardInterrupt:
+            print(f"\n{RED}Operation cancelled by user. Exiting...{RESET}")
+            sys.exit(0)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print(f"\n{RED}Operation cancelled by user. Exiting...{RESET}")
+        sys.exit(0)
