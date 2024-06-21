@@ -17,6 +17,9 @@ from tqdm import tqdm
 - utilize default_project_path from config.ini
 - utilize skip_setup from config.ini
 - utilize skip_pyproject from config.ini
+- if pytest is not installed, don't import to test_main.py
+- if pydantic is not installed, don't import to main.py
+- split test_install_packages_and_verify_imports into test_base_install and test_package_install
 """
 
 CYAN = Fore.CYAN
