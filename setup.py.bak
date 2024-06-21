@@ -7,10 +7,11 @@ readme_path = HERE / "README.md"
 with open(readme_path, encoding="utf-8") as f:
     long_description = f.read()
 
-HERE = pathlib.Path(__file__).parent
 requirements_path = HERE / "requirements.txt"
 with open(requirements_path, encoding="utf-8") as f:
     requirements = f.read().splitlines()
+
+print("Setup script executed.")
 
 setup(
     name="dev_template",

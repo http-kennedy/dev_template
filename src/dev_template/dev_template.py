@@ -2,6 +2,7 @@ import argparse
 import configparser
 import os
 import platform
+import shutil
 import subprocess
 import sys
 from typing import List
@@ -13,7 +14,8 @@ from prompt_toolkit.formatted_text import HTML
 from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
 from tqdm import tqdm
 
-""" TODO: 
+""" TODO:
+- find way to deploy /templates directory with package -> use pkg_resources? -> copies templates to config/dev_template/templates
 - utilize default_project_path from config.ini
 - utilize skip_setup from config.ini
 - utilize skip_pyproject from config.ini
@@ -100,78 +102,45 @@ def create_subdirectories(full_project_path: str, project_name: str) -> None:
 
 
 def create_basic_files(full_project_path: str, project_name: str) -> None:
-    files_content = {
-        "README.md": f"# {project_name.capitalize()}\n",
-        ".gitignore": f"__pycache__/\n*.pyc\n.env\n{project_name}_venv/\n",
-        "requirements.txt": "pydantic\npytest\nsetuptools\nwheel\n",
-        "setup.py": f"""from setuptools import setup, find_packages
+    config_path = get_config_path()
+    config = configparser.ConfigParser()
+    config.read(os.path.join(config_path, "config.ini"))
 
-setup(
-    name="{project_name}",
-    version="0.1.0",
-    packages=find_packages(where="src"),
-    package_dir={{"": "src"}},
-    install_requires=[],
-    entry_points={{
-        "console_scripts": [
-            "{project_name} = src.{project_name}.main:main",
-        ],
-    }},
-)
-""",
-        f"src/{project_name}/__init__.py": f"""# src/{project_name}/__init__.py
-# This file is intentionally left blank.
-""",
-        f"src/{project_name}/main.py": """import pydantic
+    skip_setup = config.getboolean("DEFAULT", "skip_setup", fallback=False)
+    skip_pyproject = config.getboolean("DEFAULT", "skip_pyproject", fallback=False)
 
-def main():
-    print("Hello, World!")
+    template_dir = os.path.join(config_path, "templates")
 
-if __name__ == "__main__":
-    main()
-""",
-        "tests/__init__.py": """# tests/__init__.py
-# This file is intentionally left blank.
-""",
-        "tests/test_main.py": """import pytest
-
-def test_example():
-    assert True
-""",
-        "pyproject.toml": f"""
-[build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "{project_name}"
-version = "0.1.0"
-description = ""
-readme = "README.md"
-license = {{text = ""}}
-authors = []
-
-[project.urls]
-Homepage = "https://example.com"
-Repository = "https://example.com/repository"
-
-[project.dependencies]
-pydantic = "*"
-pytest = "*"
-setuptools = "*"
-wheel = "*"
-""",
+    files_to_create = {
+        "README.md": "README.md",
+        ".gitignore": ".gitignore",
+        "requirements.txt": "requirements.txt",
+        "src/{project_name}/__init__.py": os.path.join("src", "__init__.py"),
+        "src/{project_name}/main.py": os.path.join("src", "main.py"),
+        "tests/__init__.py": os.path.join("tests", "__init__.py"),
+        "tests/test_main.py": os.path.join("tests", "test_main.py"),
     }
 
+    if not skip_setup:
+        files_to_create["setup.py"] = "setup.py"
+
+    if not skip_pyproject:
+        files_to_create["pyproject.toml"] = "pyproject.toml"
+
     with tqdm(
-        total=len(files_content),
+        total=len(files_to_create),
         desc=f"{CYAN}Creating basic files{RESET}",
         ncols=100,
         leave=True,
     ) as progress_bar:
-        for filename, content in files_content.items():
-            with open(os.path.join(full_project_path, filename), "w") as f:
-                f.write(content)
+        for dest_template, src_template in files_to_create.items():
+            dest_file = os.path.join(
+                full_project_path, dest_template.format(project_name=project_name)
+            )
+            src_file = os.path.join(template_dir, src_template)
+
+            os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+            shutil.copyfile(src_file, dest_file)
             progress_bar.update(1)
     print(f"{PURPLE}Creating basic files - Done{RESET}\n")
 
@@ -272,12 +241,13 @@ def get_config_path() -> str:
 
 def read_default_packages() -> list:
     config_path = get_config_path()
-    if not os.path.exists(config_path):
-        print(f"{RED}Configuration file not found at {config_path}{RESET}")
+    config_file = os.path.join(config_path, "config.ini")
+    if not os.path.exists(config_file):
+        print(f"{RED}Configuration file not found at {config_file}{RESET}")
         return []
 
     config = configparser.ConfigParser()
-    config.read(config_path)
+    config.read(config_file)
 
     default_packages = config.get("DEFAULT", "default_packages", fallback="").split(",")
     return [package.strip() for package in default_packages if package.strip()]
@@ -381,7 +351,7 @@ def main():
             init(autoreset=True)
             print_formatted_text(
                 HTML(
-                    f"<cyan>{'='*30}</cyan>\n<cyan>{'Python Project Setup':^30}</cyan>\n<cyan>{'='*30}</cyan>"
+                    f"<cyan>{'='*33}</cyan>\n<cyan>{'| setting up new Python project |':^30}</cyan>\n<cyan>{'='*33}</cyan>"
                 )
             )
 
