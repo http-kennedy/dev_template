@@ -19,9 +19,7 @@ from tqdm import tqdm
 """ TODO:
 - update setup.py template
 - update pyproject.toml template
-- pyproject.toml still gets made if skipped due to additional packages
 - split test_install_packages_and_verify_imports into test_base_install and test_package_install
-- duplicate packages listed as successful
 """
 
 CYAN = Fore.CYAN
@@ -74,7 +72,11 @@ def initialize_globals() -> None:
 
     config_path = CONFIG["config_path"]
     if not os.path.exists(config_path):
-        initialize_config()
+        default_config_path = os.path.join(
+            os.path.dirname(__file__), "config", "config.ini"
+        )
+        os.makedirs(CONFIG["config_dir"], exist_ok=True)
+        shutil.copy(default_config_path, config_path)
 
     config = configparser.ConfigParser()
     config.read(config_path)
@@ -98,33 +100,7 @@ def get_config_path() -> str:
     return config_dir
 
 
-def initialize_config() -> None:
-    config_dir = CONFIG["config_dir"]
-    config_path = CONFIG["config_path"]
-
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
-
-    if not os.path.exists(config_path):
-        config = configparser.ConfigParser()
-        config["DEFAULT"] = {
-            "default_packages": "",
-            "default_project_path": "",
-            "skip_setup": "0",
-            "skip_pyproject": "0",
-            "templates_copied": "0",
-            "reserved_file_names": "CON, PRN, AUX, NUL, COM1, COM2, COM3, COM4, COM5, COM6, COM7, COM8, COM9, LPT1, LPT2, LPT3, LPT4, LPT5, LPT6, LPT7, LPT8, LPT9, bin, boot, dev, etc, lib, lib64, proc, run, sbin, srv, sys, tmp, var",
-        }
-
-        with open(config_path, "w") as f:
-            config.write(f)
-
-
 def setup_config() -> None:
-    """
-    Sets up the configuration by prompting the user for input and updating the config.ini file.
-    """
-    initialize_config()
     config_path = CONFIG["config_path"]
     config = configparser.ConfigParser()
     config.read(config_path)
@@ -192,25 +168,6 @@ def copy_templates() -> None:
         config.write(configfile)
 
 
-def prompt_with_path_completion(prompt_text: str, default_value: str = "") -> str:
-    session = PromptSession()
-    prompt_message = HTML(
-        f"{prompt_text} \n[Press Enter to use default: <green>{default_value}</green>]: "
-        if default_value
-        else prompt_text
-    )
-
-    while True:
-        response = session.prompt(prompt_message, completer=PathCompleter())
-        path = response.strip() if response.strip() else default_value
-        if path:
-            return path
-
-        print_formatted_text(
-            HTML(format_text("Error: Path cannot be empty...\n", "red"))
-        )
-
-
 def prompt_with_simple_completion(prompt_text: str) -> str:
     session = PromptSession()
     return session.prompt(HTML(prompt_text))
@@ -248,9 +205,14 @@ def get_project_name() -> str:
 def get_project_path(default_project_path: str, allow_empty: bool = False) -> str:
     session = PromptSession()
     if default_project_path:
-        prompt_message = f"<yellow>Press Enter to use default path</yellow> '<green>{default_project_path}</green>' <yellow>or enter new absolute path: </yellow>"
+        prompt_message = format_text(
+            f"Press Enter to use default path '<green>{default_project_path}</green>' or enter new absolute path: ",
+            "yellow",
+        )
     else:
-        prompt_message = "<yellow>Enter absolute path to create the project: </yellow>"
+        prompt_message = format_text(
+            "Enter absolute path to create the project: ", "yellow"
+        )
 
     while True:
         print_formatted_text(HTML(prompt_message))
