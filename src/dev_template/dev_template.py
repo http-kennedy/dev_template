@@ -7,10 +7,10 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from colorama import Fore, Style, init
-from prompt_toolkit import PromptSession, print_formatted_text
+from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import PathCompleter
 from prompt_toolkit.formatted_text import HTML
 from pydantic import BaseModel, DirectoryPath, ValidationError, validator
@@ -197,16 +197,16 @@ def get_project_name() -> str:
                 )
                 return project_name
             except ValidationError as e:
-                print_formatted_text(
-                    HTML(format_text(f"Error: {e.errors()[0]['msg']}", "red"))
-                )
+                print(f"{RED}Error: {e.errors()[0]['msg']}{RESET}")
         else:
-            print_formatted_text(
-                HTML(format_text("Error: Project name cannot be empty...\n", "red"))
-            )
+            print(f"{RED}Error: Project name cannot be empty...{RESET}\n")
 
 
-def get_project_path(default_project_path: str, allow_empty: bool = False) -> str:
+def get_project_path(
+    default_project_path: str,
+    project_name: Optional[str] = None,
+    allow_empty: bool = False,
+) -> str:
     if default_project_path:
         prompt_message = format_text(
             f"Press Enter to use default path '<green>{default_project_path}</green>' or enter new absolute path: ",
@@ -219,9 +219,15 @@ def get_project_path(default_project_path: str, allow_empty: bool = False) -> st
 
     while True:
         project_path = prompt_with_path_completion(prompt_message, default_project_path)
-        print(f"Project path: {project_path}")
 
         if project_path or allow_empty:
+            full_project_path = os.path.join(project_path, project_name)
+            if os.path.exists(full_project_path):
+                print(
+                    f"{RED}Error: The project {RESET}'{project_name}' {RED}already exists at {RESET}'{project_path}'{RED}. Please choose a different path or project name.{RESET}\n"
+                )
+                project_path = None
+                continue
             if project_path and (
                 os.path.exists(project_path) and os.access(project_path, os.W_OK)
             ):
@@ -234,12 +240,12 @@ def get_project_path(default_project_path: str, allow_empty: bool = False) -> st
             if not os.path.exists(project_path)
             else f"Error: You do not have write permissions for the path... '{project_path}'"
         )
-        print_formatted_text(HTML(format_text(error_message, "red")))
+        print(f"{RED}{error_message}{RESET}")
 
 
 def get_packages() -> List[str]:
     default_packages_str = ", ".join(package.strip() for package in DEFAULT_PACKAGES)
-    prompt_text = "Enter successful packages to install (comma delimited): "
+    prompt_text = "Enter packages to install (comma delimited): "
 
     session = PromptSession()
     successful_packages = session.prompt(
@@ -450,7 +456,7 @@ def display_help() -> None:
 
 def main():
     initialize_globals()
-    print("Globals initialized")
+    print(f"{CYAN}Globals initialized{RESET}")
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument(
@@ -468,23 +474,19 @@ def main():
 
     run_setup()
 
-    print(f"Default project path: {DEFAULT_PROJECT_PATH}")
+    print(f"{CYAN}Default project path: {DEFAULT_PROJECT_PATH}{RESET}")
 
     while True:
         try:
             init(autoreset=True)
-            print_formatted_text(
-                HTML(
-                    format_text("=" * 33, "cyan")
-                    + "\n"
-                    + format_text("| setting up new Python project |", "cyan")
-                    + "\n"
-                    + format_text("=" * 33, "cyan")
-                )
+            print(
+                f"{CYAN}{'=' * 33}{RESET}\n"
+                f"{CYAN}| setting up new Python project |{RESET}\n"
+                f"{CYAN}{'=' * 33}{RESET}"
             )
 
             project_name = get_project_name()
-            project_path = get_project_path(DEFAULT_PROJECT_PATH)
+            project_path = get_project_path(DEFAULT_PROJECT_PATH, project_name)
             packages = get_packages()
 
             config = ProjectConfig(
@@ -497,32 +499,22 @@ def main():
                 project_path += "/"
 
             full_project_path = os.path.join(project_path, project_name)
-            print(f"Full project path: {full_project_path}")
+            print(f"{CYAN}Full project path: {full_project_path}{RESET}")
 
-            print_formatted_text(
-                HTML(
-                    format_text(
-                        f"\nSetting up project '<cyan>{project_name}</cyan>' at '<cyan>{full_project_path}</cyan>'\n",
-                        "purple",
-                    )
-                )
+            print(
+                f"{PURPLE}\nSetting up project '{CYAN}{project_name}{PURPLE}' at '{CYAN}{full_project_path}{PURPLE}'\n{RESET}"
             )
 
             create_project_structure(config)
 
-            print_formatted_text(
-                HTML(
-                    format_text(
-                        f"\nProject '<cyan>{project_name}</cyan>' created successfully at '<cyan>{full_project_path}</cyan>'.",
-                        "purple",
-                    )
-                )
+            print(
+                f"{PURPLE}\nProject '{CYAN}{project_name}{PURPLE}' created successfully at '{CYAN}{full_project_path}{PURPLE}'.{RESET}"
             )
             break
 
         except (ValidationError, ValueError) as e:
-            print_formatted_text(HTML(format_text(f"Error: {str(e)}", "red")))
-            input(format_text("Press Enter to try again...", "yellow"))
+            print(f"{RED}Error: {str(e)}{RESET}")
+            input(f"{YELLOW}Press Enter to try again...{RESET}")
         except KeyboardInterrupt:
             print(f"{RED}Operation cancelled by user. Exiting...{RESET}")
             sys.exit(0)
