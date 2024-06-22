@@ -522,7 +522,7 @@ def main():
             print_formatted_text(HTML(format_text(f"Error: {str(e)}", "red")))
             input(format_text("Press Enter to try again...", "yellow"))
         except KeyboardInterrupt:
-            print(format_text("Operation cancelled by user. Exiting...", "red"))
+            print(f"{RED}Operation cancelled by user. Exiting...{RESET}")
             sys.exit(0)
 
 
@@ -530,5 +530,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(format_text("Operation cancelled by user. Exiting...", "red"))
+        print(f"{RED}Operation cancelled by user. Exiting...{RESET}")
         sys.exit(0)
