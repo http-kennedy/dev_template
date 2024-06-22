@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 from colorama import Fore, Style, init
 from prompt_toolkit import PromptSession, print_formatted_text
@@ -44,7 +44,7 @@ RESERVED_FILE_NAMES = set()
 class ProjectConfig(BaseModel):
     project_path: DirectoryPath
     project_name: str
-    additional_packages: List[str]
+    successful_packages: List[str]
 
     @validator("project_name")
     def project_name_valid(cls, project_name):
@@ -59,7 +59,7 @@ def format_text(text: str, color: str) -> str:
     return f"<{color}>{text}</{color}>"
 
 
-def initialize_globals():
+def initialize_globals() -> None:
     global \
         CONFIG, \
         DEFAULT_PACKAGES, \
@@ -68,6 +68,7 @@ def initialize_globals():
         SKIP_PYPROJECT, \
         TEMPLATES_COPIED, \
         RESERVED_FILE_NAMES
+
     CONFIG["config_dir"] = get_config_path()
     CONFIG["config_path"] = os.path.join(CONFIG["config_dir"], "config.ini")
 
@@ -85,9 +86,7 @@ def initialize_globals():
     TEMPLATES_COPIED = config.getboolean("DEFAULT", "templates_copied", fallback=False)
     RESERVED_FILE_NAMES = set(
         name.strip().upper()
-        for name in config.get("DEFAULT", "reserved_file_names", fallback="").split(
-            ", "
-        )
+        for name in config.get("DEFAULT", "reserved_file_names", fallback="").split(",")
     )
 
 
@@ -122,6 +121,9 @@ def initialize_config() -> None:
 
 
 def setup_config() -> None:
+    """
+    Sets up the configuration by prompting the user for input and updating the config.ini file.
+    """
     initialize_config()
     config_path = CONFIG["config_path"]
     config = configparser.ConfigParser()
@@ -130,19 +132,29 @@ def setup_config() -> None:
     default_packages = prompt_with_simple_completion(
         "<yellow>Enter default packages to install (comma delimited): </yellow>"
     )
-    default_project_dir = prompt_with_path_completion(
-        "<yellow>Enter default project directory: </yellow>"
-    )
+
+    session = PromptSession()
+    prompt_message = HTML("<yellow>Enter default project directory: </yellow>")
+
+    while True:
+        response = session.prompt(prompt_message, completer=PathCompleter())
+        default_project_dir = response.strip()
+        if default_project_dir or default_project_dir == "":
+            break
+        print_formatted_text(
+            HTML(format_text("Error: Path cannot be empty...\n", "red"))
+        )
 
     def get_bool_input(prompt_text: str) -> str:
         while True:
             value = prompt_with_simple_completion(prompt_text).strip().lower()
             if value in {"yes", "y", "no", "n"}:
                 return "1" if value in {"yes", "y"} else "0"
-            else:
-                print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
+            print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
 
-    skip_setup = get_bool_input("<yellow>Skip setup.py creation? (Yes/Y or No/N): </yellow>")
+    skip_setup = get_bool_input(
+        "<yellow>Skip setup.py creation? (Yes/Y or No/N): </yellow>"
+    )
     skip_pyproject = get_bool_input(
         "<yellow>Skip pyproject.toml creation? (Yes/Y or No/N): </yellow>"
     )
@@ -193,10 +205,10 @@ def prompt_with_path_completion(prompt_text: str, default_value: str = "") -> st
         path = response.strip() if response.strip() else default_value
         if path:
             return path
-        else:
-            print_formatted_text(
-                HTML(format_text("Error: Path cannot be empty...\n", "red"))
-            )
+
+        print_formatted_text(
+            HTML(format_text("Error: Path cannot be empty...\n", "red"))
+        )
 
 
 def prompt_with_simple_completion(prompt_text: str) -> str:
@@ -220,7 +232,7 @@ def get_project_name() -> str:
                 _ = ProjectConfig(
                     project_name=project_name,
                     project_path="/",
-                    additional_packages=[],
+                    successful_packages=[],
                 )
                 return project_name
             except ValidationError as e:
@@ -233,38 +245,45 @@ def get_project_name() -> str:
             )
 
 
-def get_project_path(default_project_path: str) -> str:
+def get_project_path(default_project_path: str, allow_empty: bool = False) -> str:
+    session = PromptSession()
+    if default_project_path:
+        prompt_message = f"<yellow>Press Enter to use default path</yellow> '<green>{default_project_path}</green>' <yellow>or enter new absolute path: </yellow>"
+    else:
+        prompt_message = "<yellow>Enter absolute path to create the project: </yellow>"
+
     while True:
-        project_path = prompt_with_path_completion(
-            format_text(
-                "Enter absolute path to create the project: ",
-                "yellow",
-            ),
-            default_value=default_project_path,
-        )
+        print_formatted_text(HTML(prompt_message))
+        response = session.prompt(completer=PathCompleter())
+        project_path = response.strip() if response.strip() else default_project_path
         print(f"Project path: {project_path}")
 
-        if os.path.exists(project_path) and os.access(project_path, os.W_OK):
-            return project_path
-        else:
-            error_message = (
-                f"Error: The path '{project_path}' does not exist"
-                if not os.path.exists(project_path)
-                else f"Error: You do not have write permissions for the path... '{project_path}'"
-            )
-            print_formatted_text(HTML(format_text(error_message, "red")))
+        if project_path or allow_empty:
+            if project_path and (
+                os.path.exists(project_path) and os.access(project_path, os.W_OK)
+            ):
+                return project_path
+            elif allow_empty:
+                return project_path
+
+        error_message = (
+            f"Error: The path '{project_path}' does not exist"
+            if not os.path.exists(project_path)
+            else f"Error: You do not have write permissions for the path... '{project_path}'"
+        )
+        print_formatted_text(HTML(format_text(error_message, "red")))
 
 
-def get_additional_packages() -> List[str]:
+def get_packages() -> List[str]:
     default_packages_str = ", ".join(package.strip() for package in DEFAULT_PACKAGES)
-    prompt_text = "Enter additional packages to install (comma delimited): "
+    prompt_text = "Enter successful packages to install (comma delimited): "
 
     session = PromptSession()
-    additional_packages = session.prompt(
+    successful_packages = session.prompt(
         HTML(format_text(prompt_text, "yellow")), default=default_packages_str
     ).split(",")
 
-    return [package.strip() for package in additional_packages if package.strip()]
+    return [package.strip() for package in successful_packages if package.strip()]
 
 
 def create_project_structure(config: ProjectConfig) -> None:
@@ -284,7 +303,16 @@ def create_project_structure(config: ProjectConfig) -> None:
 
     create_virtualenv(full_project_path, config.project_name)
 
-    install_packages(full_project_path, config.project_name, config.additional_packages)
+    successful_packages = install_packages(
+        full_project_path, config.project_name, config.successful_packages
+    )
+
+    if successful_packages:
+        write_successful_packages_to_files(
+            full_project_path,
+            config.project_name,
+            successful_packages,
+        )
 
 
 def create_project_directory(full_project_path: str) -> None:
@@ -350,31 +378,26 @@ def create_virtualenv(full_project_path: str, project_name: str) -> None:
 
 
 def install_packages(
-    full_project_path: str, project_name: str, additional_packages: list
-) -> None:
+    full_project_path: str, project_name: str, packages: list
+) -> List[str]:
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     bin_dir = "Scripts" if os.name == "nt" else "bin"
+    packages = list(set(packages))
 
-    all_packages = set(
-        package.strip()
-        for package in DEFAULT_PACKAGES + additional_packages
-        if package.strip()
-    )
-
-    if not all_packages:
+    if not packages:
         print(f"{YELLOW}No packages to install. Skipping...{RESET}")
-        return
+        return []
 
     successful_packages = []
     failed_packages = []
 
     with tqdm(
-        total=len(all_packages),
+        total=len(packages),
         desc=f"{CYAN}Installing packages{RESET}",
         ncols=100,
         leave=True,
     ) as progress_bar:
-        for package in all_packages:
+        for package in packages:
             try:
                 subprocess.check_call(
                     [os.path.join(venv_path, bin_dir, "pip"), "install", package],
@@ -400,28 +423,55 @@ def install_packages(
         )
         print(f"{RED}Failed to install packages: {failed_packages_str}{RESET}")
 
-    with open(os.path.join(full_project_path, "requirements.txt"), "a") as f:
-        for package in additional_packages:
-            if package in successful_packages:
-                f.write(f"{package}\n")
-
-    main_py_path = os.path.join(full_project_path, f"src/{project_name}/main.py")
-    with open(main_py_path, "r") as f:
-        main_py_content = f.read()
-
-    with open(main_py_path, "w") as f:
-        for package in successful_packages:
-            if package in additional_packages:
-                f.write(f"import {package}\n")
-        f.write(main_py_content)
-
-    pyproject_toml_path = os.path.join(full_project_path, "pyproject.toml")
-    with open(pyproject_toml_path, "a") as f:
-        for package in successful_packages:
-            if package in additional_packages:
-                f.write(f'{package} = "*"\n')
-
     print(f"{PURPLE}Installing packages - Done{RESET}")
+    return successful_packages
+
+
+def get_installed_packages(venv_path: str) -> Dict[str, str]:
+    bin_dir = "Scripts" if os.name == "nt" else "bin"
+    freeze_output = subprocess.check_output(
+        [os.path.join(venv_path, bin_dir, "pip"), "freeze"], text=True
+    )
+    return dict(line.split("==") for line in freeze_output.splitlines())
+
+
+def write_successful_packages_to_files(
+    full_project_path: str,
+    project_name: str,
+    successful_packages: List[str],
+) -> None:
+    venv_path = os.path.join(full_project_path, f"{project_name}_venv")
+    package_versions = get_installed_packages(venv_path)
+
+    files_to_update = {
+        "requirements.txt": lambda: successful_packages,
+        "pyproject.toml": lambda: successful_packages if not SKIP_PYPROJECT else None,
+        f"src/{project_name}/main.py": lambda: [
+            f"import {package}\n" for package in successful_packages
+        ],
+    }
+
+    print()
+    with tqdm(
+        total=len(files_to_update),
+        desc=f"{CYAN}Updating files{RESET}",
+        ncols=100,
+        leave=True,
+    ) as progress_bar:
+        for file, packages in files_to_update.items():
+            package_lines = packages()
+            if package_lines:
+                file_path = os.path.join(full_project_path, file)
+                with open(file_path, "a") as f:
+                    if file == "requirements.txt":
+                        for package in successful_packages:
+                            if package in package_versions:
+                                f.write(f"{package}=={package_versions[package]}\n")
+                    else:
+                        f.writelines(package_lines)
+            progress_bar.update(1)
+
+    print(f"{PURPLE}Writing successful packages to files - Done{RESET}\n")
 
 
 def display_help() -> None:
@@ -472,12 +522,12 @@ def main():
 
             project_name = get_project_name()
             project_path = get_project_path(DEFAULT_PROJECT_PATH)
-            additional_packages = get_additional_packages()
+            packages = get_packages()
 
             config = ProjectConfig(
                 project_name=project_name,
                 project_path=project_path,
-                additional_packages=additional_packages,
+                successful_packages=packages,
             )
 
             if not project_path.endswith("/"):
