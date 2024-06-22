@@ -95,6 +95,10 @@ def initialize_globals() -> None:
         for name in config.get("DEFAULT", "reserved_file_names", fallback="").split(",")
     )
 
+    if not TEMPLATES_COPIED:
+        copy_templates()
+        print("Templates copied successfully")
+
 
 def get_config_path() -> str:
     if platform.system() == "Windows":
@@ -269,12 +273,6 @@ def prompt_with_path_completion(prompt_text: str, default_value: str = "") -> st
 def prompt_with_simple_completion(prompt_text: str) -> str:
     session = PromptSession()
     return session.prompt(HTML(prompt_text))
-
-
-def run_setup():
-    if not TEMPLATES_COPIED:
-        copy_templates()
-        print("Templates copied successfully")
 
 
 def get_project_name() -> str:
@@ -579,8 +577,6 @@ def main():
     if args.config:
         setup_config()
         return
-
-    run_setup()
 
     print(f"{CYAN}Default project path: {DEFAULT_PROJECT_PATH}{RESET}")
 
