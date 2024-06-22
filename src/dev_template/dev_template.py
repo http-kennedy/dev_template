@@ -1,6 +1,7 @@
 import argparse
 import configparser
 import importlib.resources as package_resources
+import logging
 import os
 import platform
 import shutil
@@ -34,8 +35,8 @@ RESET = Style.RESET_ALL
 CONFIG = {}
 DEFAULT_PACKAGES = []
 DEFAULT_PROJECT_PATH = ""
-SKIP_SETUP = False
-SKIP_PYPROJECT = False
+CREATE_SETUP = False
+CREATE_PYPROJECT = False
 TEMPLATES_COPIED = False
 RESERVED_FILE_NAMES = set()
 
@@ -58,13 +59,17 @@ def format_text(text: str, color: str) -> str:
     return f"<{color}>{text}</{color}>"
 
 
+def clear_screen() -> None:
+    os.system("cls" if os.name == "nt" else "clear")
+
+
 def initialize_globals() -> None:
     global \
         CONFIG, \
         DEFAULT_PACKAGES, \
         DEFAULT_PROJECT_PATH, \
-        SKIP_SETUP, \
-        SKIP_PYPROJECT, \
+        CREATE_SETUP, \
+        CREATE_PYPROJECT, \
         TEMPLATES_COPIED, \
         RESERVED_FILE_NAMES
 
@@ -84,8 +89,8 @@ def initialize_globals() -> None:
 
     DEFAULT_PACKAGES = config.get("DEFAULT", "default_packages", fallback="").split(",")
     DEFAULT_PROJECT_PATH = config.get("DEFAULT", "default_project_path", fallback="")
-    SKIP_SETUP = config.getboolean("DEFAULT", "skip_setup", fallback=False)
-    SKIP_PYPROJECT = config.getboolean("DEFAULT", "skip_pyproject", fallback=False)
+    CREATE_SETUP = config.getboolean("DEFAULT", "create_setup", fallback=False)
+    CREATE_PYPROJECT = config.getboolean("DEFAULT", "create_pyproject", fallback=False)
     TEMPLATES_COPIED = config.getboolean("DEFAULT", "templates_copied", fallback=False)
     RESERVED_FILE_NAMES = set(
         name.strip().upper()
@@ -101,45 +106,136 @@ def get_config_path() -> str:
     return config_dir
 
 
+def setup_logging(project_name: str, debug: bool = False) -> None:
+    logs_dir = os.path.join(CONFIG["config_dir"], "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    log_file = os.path.join(logs_dir, f"{project_name}.log")
+
+    log_level = logging.DEBUG if debug else logging.WARNING
+
+    logging.basicConfig(
+        filename=log_file,
+        level=log_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+    logging.debug("Logging is set up.")
+
+
+def get_bool_input(prompt_text: str, default: str = "no") -> str:
+    while True:
+        value = prompt_with_simple_completion(prompt_text).strip().lower()
+        if value == "":
+            value = default.lower()
+        if value in {"yes", "y", "no", "n"}:
+            return "1" if value in {"yes", "y"} else "0"
+        print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
+
+
+def setup_logo() -> None:
+    print(
+        f"{CYAN}{'=' * 23}{RESET}\n"
+        f"{CYAN}| dev_template config |{RESET}\n"
+        f"{CYAN}{'=' * 23}{RESET}"
+    )
+
+
 def setup_config() -> None:
     config_path = CONFIG["config_path"]
     config = configparser.ConfigParser()
     config.read(config_path)
 
-    default_packages = prompt_with_simple_completion(
+    def get_current_value(section: str, option: str, default: str = "") -> str:
+        return config.get(section, option, fallback=default)
+
+    clear_screen()
+    setup_logo()
+    default_packages_current = get_current_value("DEFAULT", "default_packages", "")
+    if default_packages_current:
+        print(
+            f"{GREEN}Current default packages to be installed in each project:{RESET}"
+        )
+        for package in default_packages_current.split(","):
+            print(f"- {package.strip()}")
+        print()
+    default_packages_prompt = (
         "<yellow>Enter default packages to install (comma delimited): </yellow>"
     )
+    default_packages_response = prompt_with_simple_completion(default_packages_prompt)
+    if not default_packages_response and default_packages_current:
+        clear_default_packages = get_bool_input(
+            "Do you want to clear the default packages? (Yes/Y or No/N) or press 'Enter' for [No]: ",
+            "no",
+        )
+        default_packages = (
+            "" if clear_default_packages == "1" else default_packages_current
+        )
+    else:
+        default_packages_list = [
+            package.strip()
+            for package in (
+                default_packages_response or default_packages_current
+            ).split(",")
+        ]
+        default_packages = ", ".join(sorted(set(default_packages_list)))
 
+    clear_screen()
+    setup_logo()
     session = PromptSession()
-    prompt_message = HTML("<yellow>Enter default project directory: </yellow>")
+    default_project_dir_current = get_current_value(
+        "DEFAULT", "default_project_path", ""
+    )
+    if default_project_dir_current:
+        print(
+            f'{GREEN}Current default project directory ={RESET} "{default_project_dir_current}"\n'
+        )
+    default_project_dir_prompt = HTML(
+        "<yellow>Enter absolute path for default project directory: </yellow>"
+    )
 
     while True:
-        response = session.prompt(prompt_message, completer=PathCompleter())
-        default_project_dir = response.strip()
+        response = session.prompt(default_project_dir_prompt, completer=PathCompleter())
+        if not response.strip() and default_project_dir_current:
+            clear_default_project_dir = get_bool_input(
+                "Do you want to clear the default project directory? (Yes/Y or No/N) or press 'Enter' for [No]: ",
+                "no",
+            )
+            default_project_dir = (
+                "" if clear_default_project_dir == "1" else default_project_dir_current
+            )
+        else:
+            default_project_dir = response.strip() or default_project_dir_current
         if default_project_dir or default_project_dir == "":
             break
 
-    def get_bool_input(prompt_text: str) -> str:
-        while True:
-            value = prompt_with_simple_completion(prompt_text).strip().lower()
-            if value in {"yes", "y", "no", "n"}:
-                return "1" if value in {"yes", "y"} else "0"
-            print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
-
-    skip_setup = get_bool_input(
-        "<yellow>Skip setup.py creation? (Yes/Y or No/N): </yellow>"
+    clear_screen()
+    setup_logo()
+    create_setup_current = (
+        "Yes" if get_current_value("DEFAULT", "create_setup", "0") == "1" else "No"
     )
-    skip_pyproject = get_bool_input(
-        "<yellow>Skip pyproject.toml creation? (Yes/Y or No/N): </yellow>"
+    create_setup = get_bool_input(
+        f"<yellow>Create setup.py? (Yes/Y or No/N) or press 'Enter' for [{create_setup_current}]: </yellow>",
+        create_setup_current,
+    )
+
+    clear_screen()
+    setup_logo()
+    create_pyproject_current = (
+        "Yes" if get_current_value("DEFAULT", "create_pyproject", "0") == "1" else "No"
+    )
+    create_pyproject = get_bool_input(
+        f"<yellow>Create pyproject.toml? (Yes/Y or No/N) or press 'Enter' for [{create_pyproject_current}]: </yellow>",
+        create_pyproject_current,
     )
 
     config["DEFAULT"]["default_packages"] = default_packages
     config["DEFAULT"]["default_project_path"] = default_project_dir
-    config["DEFAULT"]["skip_setup"] = skip_setup
-    config["DEFAULT"]["skip_pyproject"] = skip_pyproject
+    config["DEFAULT"]["create_setup"] = create_setup
+    config["DEFAULT"]["create_pyproject"] = create_pyproject
 
     with open(config_path, "w") as f:
         config.write(f)
+
+    clear_screen()
     print(f"\n{PURPLE}Configuration updated at {config_path}{RESET}")
 
 
@@ -309,10 +405,10 @@ def create_basic_files(full_project_path: str, project_name: str) -> None:
         "tests/test_main.py": os.path.join("tests", "test_main.py"),
     }
 
-    if not SKIP_SETUP:
+    if not CREATE_SETUP:
         files_to_create["setup.py"] = "setup.py"
 
-    if not SKIP_PYPROJECT:
+    if not CREATE_PYPROJECT:
         files_to_create["pyproject.toml"] = "pyproject.toml"
 
     with tqdm(
@@ -414,7 +510,7 @@ def write_successful_packages_to_files(
 
     files_to_update = {
         "requirements.txt": lambda: successful_packages,
-        "pyproject.toml": lambda: successful_packages if not SKIP_PYPROJECT else None,
+        "pyproject.toml": lambda: successful_packages if not CREATE_PYPROJECT else None,
         f"src/{project_name}/main.py": lambda: [
             f"import {package}\n" for package in successful_packages
         ],
@@ -443,33 +539,25 @@ def write_successful_packages_to_files(
     print(f"{PURPLE}Writing successful packages to files - Done{RESET}\n")
 
 
-def display_help() -> None:
-    help_text = """
-    Usage: dev_template [OPTIONS]
-
-    Options:
-      --config, -c      Setup configuration
-      --help, -h        Show this help message and exit
-    """
-    print(help_text)
+def parse_arguments():
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument(
+        "--config", "-c", action="store_true", help="Setup configuration"
+    )
+    parser.add_argument(
+        "--debug", "-d", action="store_true", help="Enable debug logging"
+    )
+    return parser.parse_args()
 
 
 def main():
     initialize_globals()
     print(f"{CYAN}Globals initialized{RESET}")
 
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument(
-        "--config", "-c", action="store_true", help="Setup configuration"
-    )
-    parser.add_argument("--help", "-h", action="store_true", help="Show help message")
-    args = parser.parse_args()
+    args = parse_arguments()
 
     if args.config:
         setup_config()
-        return
-    if args.help:
-        display_help()
         return
 
     run_setup()
@@ -486,6 +574,8 @@ def main():
             )
 
             project_name = get_project_name()
+            setup_logging(project_name, debug=args.debug)
+
             project_path = get_project_path(DEFAULT_PROJECT_PATH, project_name)
             packages = get_packages()
 
@@ -501,11 +591,25 @@ def main():
             full_project_path = os.path.join(project_path, project_name)
             print(f"{CYAN}Full project path: {full_project_path}{RESET}")
 
+            logging.info(
+                f"Setting up project '{project_name}' at '{full_project_path}'"
+            )
+            logging.info(
+                f"Global variables: CONFIG={CONFIG}, DEFAULT_PACKAGES={DEFAULT_PACKAGES}, "
+                f"DEFAULT_PROJECT_PATH={DEFAULT_PROJECT_PATH}, CREATE_SETUP={CREATE_SETUP}, "
+                f"CREATE_PYPROJECT={CREATE_PYPROJECT}, TEMPLATES_COPIED={TEMPLATES_COPIED}, "
+                f"RESERVED_FILE_NAMES={RESERVED_FILE_NAMES}"
+            )
+
             print(
                 f"{PURPLE}\nSetting up project '{CYAN}{project_name}{PURPLE}' at '{CYAN}{full_project_path}{PURPLE}'\n{RESET}"
             )
 
             create_project_structure(config)
+
+            logging.info(
+                f"Project '{project_name}' created successfully at '{full_project_path}'"
+            )
 
             print(
                 f"{PURPLE}\nProject '{CYAN}{project_name}{PURPLE}' created successfully at '{CYAN}{full_project_path}{PURPLE}'.{RESET}"
@@ -514,9 +618,11 @@ def main():
 
         except (ValidationError, ValueError) as e:
             print(f"{RED}Error: {str(e)}{RESET}")
+            logging.error(f"Error: {str(e)}")
             input(f"{YELLOW}Press Enter to try again...{RESET}")
         except KeyboardInterrupt:
             print(f"{RED}Operation cancelled by user. Exiting...{RESET}")
+            logging.info("Operation cancelled by user.")
             sys.exit(0)
 
 
@@ -525,4 +631,5 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print(f"{RED}Operation cancelled by user. Exiting...{RESET}")
+        logging.info("Operation cancelled by user.")
         sys.exit(0)
