@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "your_project_name"
+version = "0.1.0"
+description = "A brief description of your project"
+readme = "README.md"
+requires-python = ">=3.6"
+dependencies = [
+    # Add your project dependencies here
+    # "example-package==1.0.0",
+]
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+maintainers = []
+license = {text = "Your License Here"}
+keywords = ["keyword1", "keyword2", "keyword3"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Your License Here",
+    "Operating System :: OS Independent",
+    # Add additional classifiers as needed
+]
+
+[project.urls]
+Homepage = "https://your_project_homepage.com"
+Source = "https://your_project_repository.com"
+Tracker = "https://your_project_issue_tracker.com"
+
+[project.scripts]
+your_script_name = "your_module.your_script:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/your_package_name"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

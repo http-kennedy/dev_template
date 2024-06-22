@@ -18,8 +18,6 @@ from pydantic import BaseModel, DirectoryPath, ValidationError, validator
 from tqdm import tqdm
 
 """ TODO:
-- update setup.py template
-- update pyproject.toml template
 - split test_install_packages_and_verify_imports into test_base_install and test_package_install
 - implement debug logging into config/dev_template/logs/
 """
@@ -322,8 +320,7 @@ def get_project_path(
                 print(
                     f"{RED}Error: The project {RESET}'{project_name}' {RED}already exists at {RESET}'{project_path}'{RED}. Please choose a different path or project name.{RESET}\n"
                 )
-                project_path = None
-                continue
+                return None
             if project_path and (
                 os.path.exists(project_path) and os.access(project_path, os.W_OK)
             ):
@@ -405,10 +402,10 @@ def create_basic_files(full_project_path: str, project_name: str) -> None:
         "tests/test_main.py": os.path.join("tests", "test_main.py"),
     }
 
-    if not CREATE_SETUP:
+    if CREATE_SETUP:
         files_to_create["setup.py"] = "setup.py"
 
-    if not CREATE_PYPROJECT:
+    if CREATE_PYPROJECT:
         files_to_create["pyproject.toml"] = "pyproject.toml"
 
     with tqdm(
@@ -500,6 +497,30 @@ def get_installed_packages(venv_path: str) -> Dict[str, str]:
     return dict(line.split("==") for line in freeze_output.splitlines())
 
 
+def update_requirements_txt(
+    file_path: str, successful_packages: List[str], package_versions: Dict[str, str]
+) -> None:
+    with open(file_path, "a") as f:
+        for package in successful_packages:
+            if package in package_versions:
+                f.write(f"{package}=={package_versions[package]}\n")
+
+
+def update_pyproject_toml(
+    file_path: str, successful_packages: List[str], package_versions: Dict[str, str]
+) -> None:
+    with open(file_path, "r") as f:
+        lines = f.readlines()
+
+    with open(file_path, "w") as f:
+        for line in lines:
+            f.write(line)
+            if line.strip() == "dependencies = [":
+                for package in successful_packages:
+                    if package in package_versions:
+                        f.write(f'    "{package}=={package_versions[package]}",\n')
+
+
 def write_successful_packages_to_files(
     full_project_path: str,
     project_name: str,
@@ -509,11 +530,19 @@ def write_successful_packages_to_files(
     package_versions = get_installed_packages(venv_path)
 
     files_to_update = {
-        "requirements.txt": lambda: successful_packages,
-        "pyproject.toml": lambda: successful_packages if not CREATE_PYPROJECT else None,
-        f"src/{project_name}/main.py": lambda: [
-            f"import {package}\n" for package in successful_packages
-        ],
+        "requirements.txt": (
+            update_requirements_txt,
+            [successful_packages, package_versions],
+        ),
+        "pyproject.toml": (
+            update_pyproject_toml,
+            [successful_packages, package_versions],
+        ),
+    }
+
+    file_paths = {
+        "requirements.txt": os.path.join(full_project_path, "requirements.txt"),
+        "pyproject.toml": os.path.join(full_project_path, "pyproject.toml"),
     }
 
     print()
@@ -523,17 +552,8 @@ def write_successful_packages_to_files(
         ncols=100,
         leave=True,
     ) as progress_bar:
-        for file, packages in files_to_update.items():
-            package_lines = packages()
-            if package_lines:
-                file_path = os.path.join(full_project_path, file)
-                with open(file_path, "a") as f:
-                    if file == "requirements.txt":
-                        for package in successful_packages:
-                            if package in package_versions:
-                                f.write(f"{package}=={package_versions[package]}\n")
-                    else:
-                        f.writelines(package_lines)
+        for file, (update_function, args) in files_to_update.items():
+            update_function(file_paths[file], *args)
             progress_bar.update(1)
 
     print(f"{PURPLE}Writing successful packages to files - Done{RESET}\n")
@@ -573,10 +593,14 @@ def main():
                 f"{CYAN}{'=' * 33}{RESET}"
             )
 
-            project_name = get_project_name()
-            setup_logging(project_name, debug=args.debug)
+            while True:
+                project_name = get_project_name()
+                setup_logging(project_name, debug=args.debug)
 
-            project_path = get_project_path(DEFAULT_PROJECT_PATH, project_name)
+                project_path = get_project_path(DEFAULT_PROJECT_PATH, project_name)
+                if project_path:
+                    break
+
             packages = get_packages()
 
             config = ProjectConfig(
