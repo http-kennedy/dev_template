@@ -20,6 +20,7 @@ from tqdm import tqdm
 - update setup.py template
 - update pyproject.toml template
 - split test_install_packages_and_verify_imports into test_base_install and test_package_install
+- implement debug logging into config/dev_template/logs/
 """
 
 CYAN = Fore.CYAN
@@ -117,9 +118,6 @@ def setup_config() -> None:
         default_project_dir = response.strip()
         if default_project_dir or default_project_dir == "":
             break
-        print_formatted_text(
-            HTML(format_text("Error: Path cannot be empty...\n", "red"))
-        )
 
     def get_bool_input(prompt_text: str) -> str:
         while True:
@@ -168,6 +166,12 @@ def copy_templates() -> None:
         config.write(configfile)
 
 
+def prompt_with_path_completion(prompt_text: str, default_value: str = "") -> str:
+    session = PromptSession()
+    response = session.prompt(HTML(prompt_text), completer=PathCompleter())
+    return response.strip() if response.strip() else default_value
+
+
 def prompt_with_simple_completion(prompt_text: str) -> str:
     session = PromptSession()
     return session.prompt(HTML(prompt_text))
@@ -203,7 +207,6 @@ def get_project_name() -> str:
 
 
 def get_project_path(default_project_path: str, allow_empty: bool = False) -> str:
-    session = PromptSession()
     if default_project_path:
         prompt_message = format_text(
             f"Press Enter to use default path '<green>{default_project_path}</green>' or enter new absolute path: ",
@@ -215,9 +218,7 @@ def get_project_path(default_project_path: str, allow_empty: bool = False) -> st
         )
 
     while True:
-        print_formatted_text(HTML(prompt_message))
-        response = session.prompt(completer=PathCompleter())
-        project_path = response.strip() if response.strip() else default_project_path
+        project_path = prompt_with_path_completion(prompt_message, default_project_path)
         print(f"Project path: {project_path}")
 
         if project_path or allow_empty:
