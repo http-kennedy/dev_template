@@ -1,10 +1,12 @@
 import argparse
 import configparser
+import importlib.resources as package_resources
 import os
 import platform
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 from typing import List
 
 from colorama import Fore, Style, init
@@ -15,17 +17,14 @@ from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
 from tqdm import tqdm
 
 """ TODO:
-- find way to deploy /templates directory with package -> use pkg_resources? -> copies templates to config/dev_template/templates
-- utilize default_project_path from config.ini
-- utilize skip_setup from config.ini
-- utilize skip_pyproject from config.ini
-- if pytest is not installed, don't import to test_main.py
-- if pydantic is not installed, don't import to main.py
+- update setup.py template
+- pyproject.toml still gets made if skipped due to additional packages
 - split test_install_packages_and_verify_imports into test_base_install and test_package_install
 """
 
 CYAN = Fore.CYAN
 PURPLE = Fore.MAGENTA
+GREEN = Fore.GREEN
 YELLOW = Fore.YELLOW
 RED = Fore.RED
 WHITE = Fore.WHITE
@@ -56,6 +55,8 @@ RESERVED_FILE_NAMES = {
     "LPT9",
 }
 
+CONFIG = {}
+
 
 class ProjectConfig(BaseModel):
     project_path: DirectoryPath
@@ -67,6 +68,210 @@ class ProjectConfig(BaseModel):
         if project_name.upper() in RESERVED_FILE_NAMES:
             raise ValueError("Project name is reserved on Windows")
         return project_name
+
+
+def format_text(text: str, color: str) -> str:
+    return f"<{color}>{text}</{color}>"
+
+
+def initialize_globals():
+    global CONFIG
+    CONFIG["config_dir"] = get_config_path()
+    CONFIG["config_path"] = os.path.join(CONFIG["config_dir"], "config.ini")
+
+
+def get_config_path() -> str:
+    if platform.system() == "Windows":
+        config_dir = os.path.join(os.getenv("LOCALAPPDATA"), "dev_template")
+    else:
+        config_dir = os.path.join(os.path.expanduser("~"), ".config", "dev_template")
+    return config_dir
+
+
+def initialize_config() -> None:
+    config_dir = CONFIG["config_dir"]
+    config_path = CONFIG["config_path"]
+
+    if not os.path.exists(config_dir):
+        os.makedirs(config_dir)
+
+    if not os.path.exists(config_path):
+        config = configparser.ConfigParser()
+        config["DEFAULT"] = {
+            "default_packages": "",
+            "default_project_path": "",
+            "skip_setup": "0",
+            "skip_pyproject": "0",
+            "templates_copied": "0",
+        }
+
+        with open(config_path, "w") as f:
+            config.write(f)
+
+
+def setup_config() -> None:
+    initialize_config()
+    config_path = CONFIG["config_path"]
+    config = configparser.ConfigParser()
+    config.read(config_path)
+
+    default_packages = prompt_with_simple_completion(
+        "<yellow>Enter default packages to install (comma separated): </yellow>"
+    )
+    default_project_dir = prompt_with_path_completion(
+        "<yellow>Enter default project directory: </yellow>"
+    )
+
+    def get_bool_input(prompt_text: str) -> str:
+        while True:
+            value = prompt_with_simple_completion(prompt_text).strip().lower()
+            if value in {"yes", "y", "no", "n"}:
+                return "1" if value in {"yes", "y"} else "0"
+            else:
+                print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
+
+    skip_setup = get_bool_input("<yellow>Skip setup prompt? (Yes/Y or No/N): </yellow>")
+    skip_pyproject = get_bool_input(
+        "<yellow>Skip pyproject.toml prompt? (Yes/Y or No/N): </yellow>"
+    )
+
+    config["DEFAULT"]["default_packages"] = default_packages
+    config["DEFAULT"]["default_project_path"] = default_project_dir
+    config["DEFAULT"]["skip_setup"] = skip_setup
+    config["DEFAULT"]["skip_pyproject"] = skip_pyproject
+
+    with open(config_path, "w") as f:
+        config.write(f)
+    print(f"\n{PURPLE}Configuration updated at {config_path}{RESET}")
+
+
+def copy_templates() -> None:
+    config_path = CONFIG["config_path"]
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    template_dest_path = Path(CONFIG["config_dir"]) / "templates"
+
+    if not template_dest_path.exists():
+        template_dest_path.mkdir(parents=True)
+
+    with package_resources.path("dev_template", "templates") as template_src_path:
+        for item in template_src_path.rglob("*"):
+            relative_path = item.relative_to(template_src_path)
+            dest_path = template_dest_path / relative_path
+            if item.is_dir():
+                dest_path.mkdir(parents=True, exist_ok=True)
+            else:
+                shutil.copy2(item, dest_path)
+
+    config.set("DEFAULT", "templates_copied", "1")
+    with open(config_path, "w") as configfile:
+        config.write(configfile)
+
+
+def read_default_packages() -> list:
+    config_file = CONFIG["config_path"]
+    if not os.path.exists(config_file):
+        print(f"{RED}Configuration file not found at {config_file}{RESET}")
+        return []
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
+
+    default_packages = config.get("DEFAULT", "default_packages", fallback="").split(",")
+    return [package.strip() for package in default_packages if package.strip()]
+
+
+def prompt_with_path_completion(prompt_text: str, default_value: str = "") -> str:
+    session = PromptSession()
+    prompt_message = HTML(
+        f"{prompt_text} \n[Press Enter to use default: <green>{default_value}</green>]: "
+        if default_value
+        else prompt_text
+    )
+
+    while True:
+        response = session.prompt(prompt_message, completer=PathCompleter())
+        path = response.strip() if response.strip() else default_value
+        if path:
+            return path
+        else:
+            print_formatted_text(
+                HTML(format_text("Error: Path cannot be empty", "red"))
+            )
+
+
+def prompt_with_simple_completion(prompt_text: str) -> str:
+    session = PromptSession()
+    return session.prompt(HTML(prompt_text))
+
+
+def run_setup():
+    config_path = CONFIG["config_path"]
+    if not os.path.exists(config_path):
+        initialize_config()
+
+    config = configparser.ConfigParser()
+    config.read(config_path)
+    templates_copied = config.getboolean("DEFAULT", "templates_copied", fallback=False)
+    print(f"Templates copied: {templates_copied}")
+
+    if not templates_copied:
+        copy_templates()
+        print("Templates copied successfully")
+
+
+def get_project_name() -> str:
+    while True:
+        project_name = prompt_with_simple_completion(
+            format_text("Enter the project name: ", "yellow")
+        )
+        if project_name.strip():
+            try:
+                _ = ProjectConfig(
+                    project_name=project_name,
+                    project_path="/",
+                    additional_packages=[],
+                )
+                return project_name
+            except ValidationError as e:
+                print_formatted_text(
+                    HTML(format_text(f"Error: {e.errors()[0]['msg']}", "red"))
+                )
+        else:
+            print_formatted_text(
+                HTML(format_text("Error: Project name cannot be empty", "red"))
+            )
+
+
+def get_project_path(default_project_path: str) -> str:
+    while True:
+        project_path = prompt_with_path_completion(
+            format_text(
+                "Enter the fully qualified path to create the project",
+                "yellow",
+            ),
+            default_value=default_project_path,
+        )
+        print(f"Project path: {project_path}")
+
+        if os.path.exists(project_path) and os.access(project_path, os.W_OK):
+            return project_path
+        else:
+            error_message = (
+                f"Error: The path '{project_path}' does not exist"
+                if not os.path.exists(project_path)
+                else f"Error: You do not have write permissions for the path '{project_path}'"
+            )
+            print_formatted_text(HTML(format_text(error_message, "red")))
+
+
+def get_additional_packages() -> List[str]:
+    additional_packages = prompt_with_simple_completion(
+        format_text(
+            "Enter additional packages to install (comma separated): ", "yellow"
+        )
+    ).split(",")
+    return [package.strip() for package in additional_packages if package.strip()]
 
 
 def create_project_structure(config: ProjectConfig) -> None:
@@ -102,14 +307,14 @@ def create_subdirectories(full_project_path: str, project_name: str) -> None:
 
 
 def create_basic_files(full_project_path: str, project_name: str) -> None:
-    config_path = get_config_path()
+    config_path = CONFIG["config_path"]
     config = configparser.ConfigParser()
-    config.read(os.path.join(config_path, "config.ini"))
+    config.read(config_path)
 
     skip_setup = config.getboolean("DEFAULT", "skip_setup", fallback=False)
     skip_pyproject = config.getboolean("DEFAULT", "skip_pyproject", fallback=False)
 
-    template_dir = os.path.join(config_path, "templates")
+    template_dir = os.path.join(CONFIG["config_dir"], "templates")
 
     files_to_create = {
         "README.md": "README.md",
@@ -227,98 +432,6 @@ def install_packages(
     print(f"{PURPLE}Installing packages - Done{RESET}\n")
 
 
-def get_config_path() -> str:
-    if platform.system() == "Windows":
-        config_path = os.path.join(
-            os.getenv("LOCALAPPDATA"), "dev_template", "config.ini"
-        )
-    else:
-        config_path = os.path.join(
-            os.path.expanduser("~"), ".config", "dev_template", "config.ini"
-        )
-    return config_path
-
-
-def read_default_packages() -> list:
-    config_path = get_config_path()
-    config_file = os.path.join(config_path, "config.ini")
-    if not os.path.exists(config_file):
-        print(f"{RED}Configuration file not found at {config_file}{RESET}")
-        return []
-
-    config = configparser.ConfigParser()
-    config.read(config_file)
-
-    default_packages = config.get("DEFAULT", "default_packages", fallback="").split(",")
-    return [package.strip() for package in default_packages if package.strip()]
-
-
-def prompt_with_path_completion(prompt_text: str) -> str:
-    session = PromptSession()
-    return session.prompt(HTML(prompt_text), completer=PathCompleter())
-
-
-def prompt_with_simple_completion(prompt_text: str) -> str:
-    session = PromptSession()
-    return session.prompt(HTML(prompt_text))
-
-
-def initialize_config() -> None:
-    config_path = get_config_path()
-    config_dir = os.path.dirname(config_path)
-
-    if not os.path.exists(config_dir):
-        os.makedirs(config_dir)
-
-    if not os.path.exists(config_path):
-        config = configparser.ConfigParser()
-        config["DEFAULT"] = {
-            "default_packages": "",
-            "default_project_path": "",
-            "skip_setup": "0",
-            "skip_pyproject": "0",
-        }
-
-        with open(config_path, "w") as f:
-            config.write(f)
-
-
-def setup_config() -> None:
-    initialize_config()
-    config_path = get_config_path()
-    config = configparser.ConfigParser()
-    config.read(config_path)
-
-    default_packages = prompt_with_simple_completion(
-        "<yellow>Enter default packages to install (comma separated): </yellow>"
-    )
-    default_project_dir = prompt_with_path_completion(
-        "<yellow>Enter default project directory: </yellow>"
-    )
-
-    def get_bool_input(prompt_text: str) -> str:
-        while True:
-            value = prompt_with_simple_completion(prompt_text).strip().lower()
-            if value in {"yes", "y", "no", "n"}:
-                return "1" if value in {"yes", "y"} else "0"
-            else:
-                print(f"{RED}Invalid input. Please enter Yes/Y or No/N.{RESET}")
-
-    skip_setup = get_bool_input("<yellow>Skip setup prompt? (Yes/Y or No/N): </yellow>")
-    skip_pyproject = get_bool_input(
-        "<yellow>Skip pyproject.toml prompt? (Yes/Y or No/N): </yellow>"
-    )
-
-    config["DEFAULT"]["default_packages"] = default_packages
-    config["DEFAULT"]["default_project_path"] = default_project_dir
-    config["DEFAULT"]["skip_setup"] = skip_setup
-    config["DEFAULT"]["skip_pyproject"] = skip_pyproject
-
-    with open(config_path, "w") as f:
-        config.write(f)
-    print(f"\n{PURPLE}Configuration updated at {config_path}{RESET}")
-
-
 def display_help() -> None:
     help_text = """
     Usage: dev_template [OPTIONS]
@@ -331,6 +444,9 @@ def display_help() -> None:
 
 
 def main():
+    initialize_globals()
+    print("Globals initialized")
+
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument(
         "--config", "-c", action="store_true", help="Setup configuration"
@@ -345,78 +461,29 @@ def main():
         display_help()
         return
 
-    initialize_config()
+    run_setup()
+
+    config = configparser.ConfigParser()
+    config.read(CONFIG["config_path"])
+    default_project_path = config.get("DEFAULT", "default_project_path", fallback="")
+    print(f"Default project path: {default_project_path}")
+
     while True:
         try:
             init(autoreset=True)
             print_formatted_text(
                 HTML(
-                    f"<cyan>{'='*33}</cyan>\n<cyan>{'| setting up new Python project |':^30}</cyan>\n<cyan>{'='*33}</cyan>"
+                    format_text("=" * 33, "cyan")
+                    + "\n"
+                    + format_text("| setting up new Python project |", "cyan")
+                    + "\n"
+                    + format_text("=" * 33, "cyan")
                 )
             )
 
-            while True:
-                project_name = prompt_with_simple_completion(
-                    "<yellow>Enter the project name: </yellow>"
-                )
-                if not project_name.strip():
-                    print_formatted_text(
-                        HTML("<red>Error: Project name cannot be empty</red>")
-                    )
-                    continue
-                try:
-                    _ = ProjectConfig(
-                        project_name=project_name,
-                        project_path="/",
-                        additional_packages=[],
-                    )
-                    break
-                except ValidationError as e:
-                    print_formatted_text(
-                        HTML(f"<red>Error: {e.errors()[0]['msg']}</red>")
-                    )
-
-            while True:
-                project_path = prompt_with_path_completion(
-                    "<yellow>Enter the fully qualified path to create the project: </yellow>"
-                )
-                if not project_path:
-                    print_formatted_text(
-                        HTML("<red>Error: Fully qualified path cannot be empty</red>")
-                    )
-                    continue
-                if not os.path.exists(project_path):
-                    print_formatted_text(
-                        HTML(
-                            f"<red>Error: The path '{project_path}' does not exist</red>"
-                        )
-                    )
-                    continue
-                if not os.access(project_path, os.W_OK):
-                    print_formatted_text(
-                        HTML(
-                            f"<red>Error: You do not have write permissions for the path '{project_path}'</red>"
-                        )
-                    )
-                    continue
-                try:
-                    _ = ProjectConfig(
-                        project_name=project_name,
-                        project_path=project_path,
-                        additional_packages=[],
-                    )
-                    break
-                except ValidationError as e:
-                    print_formatted_text(
-                        HTML(f"<red>Error: {e.errors()[0]['msg']}</red>")
-                    )
-
-            additional_packages = prompt_with_simple_completion(
-                "<yellow>Enter additional packages to install (comma separated): </yellow>"
-            ).split(",")
-            additional_packages = [
-                package.strip() for package in additional_packages if package.strip()
-            ]
+            project_name = get_project_name()
+            project_path = get_project_path(default_project_path)
+            additional_packages = get_additional_packages()
 
             config = ProjectConfig(
                 project_name=project_name,
@@ -428,10 +495,14 @@ def main():
                 project_path += "/"
 
             full_project_path = os.path.join(project_path, project_name)
+            print(f"Full project path: {full_project_path}")
 
             print_formatted_text(
                 HTML(
-                    f"\n<purple>Setting up project '<cyan>{project_name}</cyan>' at '<cyan>{full_project_path}</cyan>'</purple>\n"
+                    format_text(
+                        f"\nSetting up project '<cyan>{project_name}</cyan>' at '<cyan>{full_project_path}</cyan>'\n",
+                        "purple",
+                    )
                 )
             )
 
@@ -439,16 +510,19 @@ def main():
 
             print_formatted_text(
                 HTML(
-                    f"\n<purple>Project '<cyan>{project_name}</cyan>' created successfully at '<cyan>{full_project_path}</cyan>'.</purple>"
+                    format_text(
+                        f"\nProject '<cyan>{project_name}</cyan>' created successfully at '<cyan>{full_project_path}</cyan>'.",
+                        "purple",
+                    )
                 )
             )
             break
 
         except (ValidationError, ValueError) as e:
-            print_formatted_text(HTML(f"<red>Error: {str(e)}</red>"))
-            input(f"{YELLOW}Press Enter to try again...{RESET}")
+            print_formatted_text(HTML(format_text(f"Error: {str(e)}", "red")))
+            input(format_text("Press Enter to try again...", "yellow"))
         except KeyboardInterrupt:
-            print(f"\n{RED}Operation cancelled by user. Exiting...{RESET}")
+            print(format_text("Operation cancelled by user. Exiting...", "red"))
             sys.exit(0)
 
 
@@ -456,5 +530,5 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(f"\n{RED}Operation cancelled by user. Exiting...{RESET}")
+        print(format_text("Operation cancelled by user. Exiting...", "red"))
         sys.exit(0)
