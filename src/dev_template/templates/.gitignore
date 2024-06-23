@@ -136,7 +136,3 @@ cython_debug/
 
 # VS Code settings
 .vscode/
-
-# Personal
-notes
-src/dev_template.egg-info/

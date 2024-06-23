@@ -1,3 +1,69 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dev_template"
+version = "1.1.1"
+description = "dev_template is a streamlined tool designed for quickly setting up new Python project directories with an emphasis on simplicity, speed, and enforcing better development standards. Ideal for developers of quick tools and hobbyist programs, it offers essential features like interactive prompts, cross-platform compatibility, and robust configuration management. With dev_template, you can create a consistent project structure, manage dependencies efficiently, and start coding right away without wading through extensive documentation."
+readme = "README.md"
+requires-python = ">=3.6"
+dependencies = [
+    "pydantic==2.7.4",
+    "tqdm==4.66.4",
+    "colorama==0.4.6",
+    "prompt_toolkit==3.0.47",
+]
+authors = [
+    {name = "Kennedy", email = "kennedy@mylaptop.dev"}
+]
+license = {text = "CC0-1.0"}
+keywords = ["python", "project setup", "automation", "development", "project structure", "dependency management", "quick start", "hobbyist", "tooling", "template"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication",
+    "Operating System :: OS Independent",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+[project.urls]
+Homepage = "https://github.com/http-kennedy/dev_template"
+Source = "https://github.com/http-kennedy/dev_template"
+Tracker = "https://github.com/http-kennedy/dev_template/issues"
+Documentation = "https://github.com/http-kennedy/dev_template/blob/main/README.md"
+
+[project.scripts]
+dev_template = "dev_template.dev_template:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dev_template"]
+
+[project.optional-dependencies]
+tests = ["pytest"]
+
+[tool.hatch.envs.default]
+dependencies = ["pytest"]
+features = ["tests"]
+
+[tool.hatch.envs.default.scripts]
+test = "hatch run test:run"
+
+[tool.hatch.envs.test]
+dependencies = ["pytest"]
+
+[tool.hatch.envs.test.scripts]
+run = "PYTHONPATH=src pytest"
+
+[tool.hatch.build]
+include = [
+    "src/dev_template/**"
+]
