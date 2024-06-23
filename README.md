@@ -6,7 +6,7 @@ This tool was created to help enforce _better_ development standards, even for q
 
 For those who want a bit more customization, the project's `README` provides clear instructions on how to modify templates and configuration settings. Everything you need to know is right there, making it easy to tailor the tool to fit your specific needs. (*If you still have/find issues please submit an issue*).
 
-With 'dev_template', you can start your projects quickly, maintain _good_ development practices, and avoid the hassle of extensive setup processes and documentation crawling.
+With `dev_template`, you can start your projects quickly, maintain _good_ development practices, and avoid the hassle of extensive setup processes and documentation crawling.
 
 ## TLDR
 _this tool is for those of us that are lazy_
@@ -48,7 +48,7 @@ _this tool is for those of us that are lazy_
   - Supports debug logging for detailed execution trace.
 
 ## Example Demo
-![Demo GIF](https://raw.githubusercontent.com/http-kennedy/dev_template/main/images/dev_template.gif)
+![Demo GIF](https://raw.githubusercontent.com/http-kennedy/dev_template/main/images/1.1.2.gif)
 
 ## Example Project Structure
 
@@ -74,19 +74,19 @@ project
 
 To install the package using pip, run the following command:
 
-```bash
+```
 pip install dev-template
 ```
 
 Once installed, you can start the tool by typing the following command in your terminal:
 
-```bash
+```
 dev_template
 ```
 
 Alternatively, you can run it as a Python module:
 
-```bash
+```
 python -m dev_template.dev_template
 ```
 
@@ -96,19 +96,19 @@ After setting up your project, navigate into the project directory and activate 
 
 For Linux/macOS:
 
-```bash
+```
 source project_venv/bin/activate
 ```
 
 For Windows (Powershell):
 
-```bash
+```
 .\project_venv\Scripts\Activate.ps1
 ```
 
 To deactivate the virtual environment, simply type:
 
-```bash
+```
 deactivate
 ```
 
@@ -117,7 +117,7 @@ deactivate
 
 * On MacOS/Linux:
 
-```bash
+```
 git clone https://github.com/http-kennedy/dev_template.git
 cd dev_template
 python -m venv venv
@@ -125,7 +125,7 @@ source venv/bin/activate
 ```
 * On Windows (Powershell):
 
-```bash
+```
 git clone https://github.com/http-kennedy/dev_template.git
 cd dev_template
 python -m venv venv
@@ -134,7 +134,7 @@ python -m venv venv
 
 2. Install the requirements:
 
-```bash
+```
 pip install -r requirements.txt
 ```
 
@@ -142,26 +142,48 @@ pip install -r requirements.txt
 
 * For interactive development (editable mode):
 
-```bash
+```
 pip install -e .
 ```
 
 * To install directly:
 
-```bash
+```
 pip install .
 ```
 
 Once installed, you can start the tool by typing the following command in your terminal:
 
-```bash
+```
 dev_template
 ```
 
 Alternatively, you can run the script directly:
 
-```bash
+```
 python src/dev_template/dev_template.py
+```
+
+After setting up your project, navigate into the project directory and activate the virtual environment. 
+
+* **The virtual environment folder is named after your project (e.g., project_venv).**
+
+For Linux/macOS:
+
+```
+source project_venv/bin/activate
+```
+
+For Windows (Powershell):
+
+```powershell
+.\project_venv\Scripts\Activate.ps1
+```
+
+To deactivate the virtual environment, simply type:
+
+```
+deactivate
 ```
 
 ## Command-Line Options
@@ -185,13 +207,13 @@ The `dev_template` tool can be ran with various flags to perform different actio
 
 The `dev_template` tool offers a configuration mode to customize default settings. You can enter configuration mode by running:
 
-```bash
+```
 dev_template -c
 ```
 
 or 
 
-```bash
+```
 dev_template --config
 ```
 
