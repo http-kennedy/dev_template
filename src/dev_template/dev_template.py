@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from prompt_toolkit.styles import Style
-from pydantic import BaseModel, DirectoryPath, ValidationError, field_validator
+from pydantic import BaseModel, DirectoryPath
 from questionary import Choice, checkbox, path, text
 from tqdm import tqdm
 
@@ -23,7 +23,6 @@ DEFAULT_PROJECT_PATH = ""
 CREATE_SETUP = False
 CREATE_PYPROJECT = False
 TEMPLATES_COPIED = False
-RESERVED_FILE_NAMES = set()
 
 base_style = {
     "qmark": "#bd93f9 bold",
@@ -47,15 +46,7 @@ setup_options_style = Style.from_dict(
 class ProjectConfig(BaseModel):
     project_path: DirectoryPath
     project_name: str
-    successful_packages: List[str]
-
-    @field_validator("project_name")
-    def project_name_valid(cls, project_name: str) -> str:
-        if project_name.upper() in RESERVED_FILE_NAMES:
-            raise ValueError(
-                f"Project name '{project_name}' is reserved... Please choose a different name.\n"
-            )
-        return project_name
+    user_packages: List[str]
 
 
 def initialize_globals() -> None:
@@ -65,8 +56,7 @@ def initialize_globals() -> None:
         DEFAULT_PROJECT_PATH, \
         CREATE_SETUP, \
         CREATE_PYPROJECT, \
-        TEMPLATES_COPIED, \
-        RESERVED_FILE_NAMES
+        TEMPLATES_COPIED
 
     CONFIG["config_dir"] = get_config_path()
     CONFIG["config_path"] = os.path.join(CONFIG["config_dir"], "config.ini")
@@ -82,26 +72,26 @@ def initialize_globals() -> None:
     config = configparser.ConfigParser()
     config.read(config_path)
 
-    DEFAULT_PACKAGES = config.get("DEFAULT", "default_packages", fallback="").split(",")
+    DEFAULT_PACKAGES = clean_package_list(
+        config.get("DEFAULT", "default_packages", fallback="")
+    )
     DEFAULT_PROJECT_PATH = config.get("DEFAULT", "default_project_path", fallback="")
     CREATE_SETUP = config.getboolean("DEFAULT", "create_setup", fallback=False)
     CREATE_PYPROJECT = config.getboolean("DEFAULT", "create_pyproject", fallback=False)
     TEMPLATES_COPIED = config.getboolean("DEFAULT", "templates_copied", fallback=False)
-    RESERVED_FILE_NAMES = set(
-        name.strip().upper()
-        for name in config.get("DEFAULT", "reserved_file_names", fallback="").split(",")
-    )
 
     if not TEMPLATES_COPIED:
         copy_templates()
 
 
+def clean_package_list(packages: str) -> List[str]:
+    return [package.strip() for package in packages.split(",") if package.strip()]
+
+
 def get_config_path() -> str:
     if platform.system() == "Windows":
-        config_dir = os.path.join(os.getenv("LOCALAPPDATA"), "dev_template")
-    else:
-        config_dir = os.path.join(os.path.expanduser("~"), ".config", "dev_template")
-    return config_dir
+        return os.path.join(os.getenv("LOCALAPPDATA"), "dev_template")
+    return os.path.join(os.path.expanduser("~"), ".config", "dev_template")
 
 
 def setup_logging(log_id: str, max_log_files: int, debug: bool = False) -> None:
@@ -118,8 +108,7 @@ def setup_logging(log_id: str, max_log_files: int, debug: bool = False) -> None:
     )
 
     log_files = sorted(
-        (os.path.join(logs_dir, f) for f in os.listdir(logs_dir)),
-        key=os.path.getmtime,
+        (os.path.join(logs_dir, f) for f in os.listdir(logs_dir)), key=os.path.getmtime
     )
     while len(log_files) > max_log_files:
         oldest_log = log_files.pop(0)
@@ -154,80 +143,16 @@ def copy_templates() -> None:
 
 def input_prompt(config_mode: bool) -> dict:
     if not config_mode:
-        while True:
-            project_name = (
-                text(
-                    "Enter the project name:",
-                    validate=lambda input: bool(input.strip())
-                    or "Project name cannot be empty.",
-                    qmark="📝",
-                    style=project_name_style,
-                )
-                .unsafe_ask()
-                .strip()
-            )
-
-            try:
-                ProjectConfig(
-                    project_path=".", project_name=project_name, successful_packages=[]
-                )
-                break
-            except ValidationError as e:
-                error_message = f"Project name '{project_name}' is reserved. Please choose a different name."
-                print(f"\n{error_message}")
-                logging.error(f"Error: {str(e)}")
-                input("Press Enter to try again...")
-                clear_screen()
+        project_name = get_project_name()
     else:
         project_name = "N/A"
 
-    project_dir = path(
-        "Enter the project directory:",
-        validate=lambda input: os.path.isdir(input)
-        or f"The directory '{input}' is not valid.",
-        only_directories=True,
-        qmark="📁",
-        default=DEFAULT_PROJECT_PATH,
-        style=project_dir_style,
-    ).unsafe_ask()
+    project_dir = get_project_dir()
 
-    default_packages_str = ", ".join([package.strip() for package in DEFAULT_PACKAGES])
-    packages = text(
-        "Enter packages (comma delimited, can be empty):",
-        qmark="📦",
-        default=default_packages_str,
-        style=packages_style,
-    ).unsafe_ask()
-
-    packages = re.sub(r"\s+", ",", packages)
-    packages = ", ".join(
-        filter(
-            None,
-            [package.strip() for package in packages.split(",") if package.strip()],
-        )
-    )
+    packages = get_packages()
 
     if config_mode:
-        choices = [
-            Choice(
-                title="Create pyproject.toml?",
-                value="create_pyproject",
-                checked=CREATE_PYPROJECT,
-            ),
-            Choice(
-                title="Create setup.py?",
-                value="create_setup",
-                checked=CREATE_SETUP,
-            ),
-        ]
-
-        setup_options = checkbox(
-            "Select options for project setup:",
-            choices=choices,
-            qmark="⚙️",
-            pointer="→",
-            style=setup_options_style,
-        ).unsafe_ask()
+        setup_options = get_setup_options()
     else:
         setup_options = []
         if CREATE_PYPROJECT:
@@ -241,6 +166,89 @@ def input_prompt(config_mode: bool) -> dict:
         "packages": packages,
         "setup_options": setup_options,
     }
+
+
+def is_valid_project_name(project_name: str) -> bool:
+    return (
+        re.search(
+            r"^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])$", project_name, re.IGNORECASE
+        )
+        is not None
+    )
+
+
+def normalize_project_name(project_name: str) -> str:
+    return re.sub(r"[-_.]+", "-", project_name).lower()
+
+
+def get_project_name() -> str:
+    while True:
+        project_name = (
+            text(
+                "Enter the project name:",
+                validate=lambda input: bool(input.strip())
+                or "Project name cannot be empty.",
+                qmark="📝",
+                style=project_name_style,
+            )
+            .unsafe_ask()
+            .strip()
+        )
+
+        if is_valid_project_name(project_name):
+            normalized_name = normalize_project_name(project_name)
+            if project_name != normalized_name:
+                project_name = normalized_name
+            return project_name
+        else:
+            print(
+                "\nInvalid project name. Please follow the naming conventions specified in PEP 508."
+            )
+            input("Press Enter to continue...")
+            clear_screen()
+
+
+def get_project_dir() -> str:
+    return path(
+        "Enter the project directory:",
+        validate=lambda input: os.path.isdir(input)
+        or f"The directory '{input}' is not valid.",
+        only_directories=True,
+        qmark="📁",
+        default=DEFAULT_PROJECT_PATH,
+        style=project_dir_style,
+    ).unsafe_ask()
+
+
+def get_packages() -> str:
+    default_packages_str = ", ".join(DEFAULT_PACKAGES)
+    packages = text(
+        "Enter packages (comma delimited, can be empty):",
+        qmark="📦",
+        default=default_packages_str,
+        style=packages_style,
+    ).unsafe_ask()
+
+    return ", ".join(clean_package_list(packages))
+
+
+def get_setup_options() -> list:
+    choices = [
+        Choice(
+            title="Create pyproject.toml?",
+            value="create_pyproject",
+            checked=CREATE_PYPROJECT,
+        ),
+        Choice(title="Create setup.py?", value="create_setup", checked=CREATE_SETUP),
+    ]
+
+    return checkbox(
+        "Select options for project setup:",
+        choices=choices,
+        qmark="⚙️",
+        pointer="→",
+        style=setup_options_style,
+    ).unsafe_ask()
 
 
 def update_config(config_path: str, details: dict) -> None:
@@ -283,14 +291,12 @@ def create_project_structure(config: ProjectConfig) -> None:
     create_virtualenv(full_project_path, config.project_name)
 
     successful_packages = install_packages(
-        full_project_path, config.project_name, config.successful_packages
+        full_project_path, config.project_name, config.user_packages
     )
 
     if successful_packages:
         write_successful_packages_to_files(
-            full_project_path,
-            config.project_name,
-            successful_packages,
+            full_project_path, config.project_name, successful_packages
         )
 
 
@@ -314,8 +320,8 @@ def create_basic_files(full_project_path: str, project_name: str) -> None:
         "README.md": "README.md",
         ".gitignore": ".gitignore",
         "requirements.txt": "requirements.txt",
-        "src/{project_name}/__init__.py": os.path.join("src", "__init__.py"),
-        "src/{project_name}/main.py": os.path.join("src", "main.py"),
+        f"src/{project_name}/__init__.py": os.path.join("src", "__init__.py"),
+        f"src/{project_name}/main.py": os.path.join("src", "main.py"),
         "tests/__init__.py": os.path.join("tests", "__init__.py"),
         "tests/test_main.py": os.path.join("tests", "test_main.py"),
     }
@@ -348,10 +354,7 @@ def create_basic_files(full_project_path: str, project_name: str) -> None:
 def create_virtualenv(full_project_path: str, project_name: str) -> None:
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     with tqdm(
-        total=1,
-        desc="Creating virtual environment...",
-        ncols=100,
-        leave=True,
+        total=1, desc="Creating virtual environment...", ncols=100, leave=True
     ) as progress_bar:
         subprocess.check_call([sys.executable, "-m", "venv", venv_path])
         progress_bar.update(1)
@@ -360,7 +363,7 @@ def create_virtualenv(full_project_path: str, project_name: str) -> None:
 
 
 def install_packages(
-    full_project_path: str, project_name: str, packages: list
+    full_project_path: str, project_name: str, packages: List[str]
 ) -> List[str]:
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     bin_dir = "Scripts" if os.name == "nt" else "bin"
@@ -375,10 +378,7 @@ def install_packages(
     failed_packages = []
 
     with tqdm(
-        total=len(packages),
-        desc="Installing packages...",
-        ncols=100,
-        leave=True,
+        total=len(packages), desc="Installing packages...", ncols=100, leave=True
     ) as progress_bar:
         for package in packages:
             try:
@@ -446,9 +446,7 @@ def update_pyproject_toml(
 
 
 def write_successful_packages_to_files(
-    full_project_path: str,
-    project_name: str,
-    successful_packages: List[str],
+    full_project_path: str, project_name: str, successful_packages: List[str]
 ) -> None:
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     package_versions = get_installed_packages(venv_path)
@@ -483,7 +481,7 @@ def write_successful_packages_to_files(
     print("Updated files with successful packages.\n")
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument(
         "--config", "-c", action="store_true", help="Setup configuration"
@@ -494,29 +492,27 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def clear_screen():
+def clear_screen() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def logo():
-    logo = """
+def logo() -> None:
+    print("""
     ++++++++++++++++
     | dev_template |
     ++++++++++++++++
-    """
-    print(logo)
+    """)
 
 
-def logo_config():
-    logo = """
+def logo_config() -> None:
+    print("""
     +++++++++++++++++
     | modify_config |
     +++++++++++++++++
-    """
-    print(logo)
+    """)
 
 
-def main():
+def main() -> None:
     initialize_globals()
     args = parse_arguments()
     unique_id = str(uuid.uuid4())
@@ -538,14 +534,12 @@ def main():
 
         project_name = answers["project_name"]
         project_path = answers["project_path"]
-        packages = [
-            pkg.strip() for pkg in answers["packages"].split(",") if pkg.strip()
-        ]
+        packages = clean_package_list(answers["packages"])
 
         config = ProjectConfig(
             project_name=project_name,
             project_path=project_path,
-            successful_packages=packages,
+            user_packages=packages,
         )
 
         if not project_path.endswith("/"):
@@ -558,7 +552,6 @@ def main():
             f"Global variables: CONFIG={CONFIG}, DEFAULT_PACKAGES={DEFAULT_PACKAGES}, "
             f"DEFAULT_PROJECT_PATH={DEFAULT_PROJECT_PATH}, CREATE_SETUP={CREATE_SETUP}, "
             f"CREATE_PYPROJECT={CREATE_PYPROJECT}, TEMPLATES_COPIED={TEMPLATES_COPIED}, "
-            f"RESERVED_FILE_NAMES={RESERVED_FILE_NAMES}"
         )
 
         print(f"\nSetting up project '{project_name}' at '{full_project_path}'\n")
@@ -580,9 +573,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user. Exiting...")
-        logging.info("Operation cancelled by user.")
-        sys.exit(0)
+    main()
