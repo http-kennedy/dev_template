@@ -12,10 +12,12 @@ dependencies = [
     "pydantic==2.7.4",
     "tqdm==4.66.4",
     "colorama==0.4.6",
-    "prompt_toolkit==3.0.47",
+    "prompt_toolkit>=3.0.36,<3.1",
+    "questionary==2.0.1",
 ]
 authors = [
-    {name = "Kennedy", email = "kennedy@mylaptop.dev"}
+    {name = "Kennedy, D."},
+    {name = "Kennedy, D.", email = "kennedy@mylaptop.dev"}
 ]
 license = {text = "CC0-1.0"}
 keywords = ["python", "project setup", "automation", "development", "project structure", "dependency management", "quick start", "hobbyist", "tooling", "template"]
