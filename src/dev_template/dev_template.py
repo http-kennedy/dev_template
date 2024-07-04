@@ -206,6 +206,7 @@ def get_project_name() -> str:
             )
             input("Press Enter to continue...")
             clear_screen()
+            logo()
 
 
 def get_project_dir() -> str:
