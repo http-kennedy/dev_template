@@ -15,9 +15,9 @@ from dev_template.dev_template import (
     create_virtualenv,
     install_packages,
     setup_logging,
+    update_dependency_files,
     update_pyproject_toml,
     update_requirements_txt,
-    write_successful_packages_to_files,
 )
 
 
@@ -264,27 +264,60 @@ class TestDevTemplate(unittest.TestCase):
     @patch("dev_template.dev_template.update_pyproject_toml")
     @patch("dev_template.dev_template.get_installed_packages")
     @patch("tqdm.tqdm")
-    def test_write_successful_packages_to_files(
+    def test_update_dependency_files_with_pyproject(
         self,
         mock_tqdm,
         mock_get_installed_packages,
         mock_update_pyproject_toml,
         mock_update_requirements_txt,
     ):
-        full_project_path = "/mock/project/path"
+        global CREATE_PYPROJECT
+        with patch("dev_template.dev_template.CREATE_PYPROJECT", True):
+            full_project_path = "/mock/project/path"
 
-        mock_get_installed_packages.return_value = {"pkg1": "1.0.0", "pkg2": "2.0.0"}
+            mock_get_installed_packages.return_value = {
+                "pkg1": "1.0.0",
+                "pkg2": "2.0.0",
+            }
 
-        write_successful_packages_to_files(full_project_path)
+            update_dependency_files(full_project_path)
 
-        mock_update_requirements_txt.assert_called_once_with(
-            os.path.join(full_project_path, "requirements.txt"),
-            {"pkg1": "1.0.0", "pkg2": "2.0.0"},
-        )
-        mock_update_pyproject_toml.assert_called_once_with(
-            os.path.join(full_project_path, "pyproject.toml"),
-            {"pkg1": "1.0.0", "pkg2": "2.0.0"},
-        )
+            mock_update_requirements_txt.assert_called_once_with(
+                os.path.join(full_project_path, "requirements.txt"),
+                {"pkg1": "1.0.0", "pkg2": "2.0.0"},
+            )
+            mock_update_pyproject_toml.assert_called_once_with(
+                os.path.join(full_project_path, "pyproject.toml"),
+                {"pkg1": "1.0.0", "pkg2": "2.0.0"},
+            )
+
+    @patch("dev_template.dev_template.update_requirements_txt")
+    @patch("dev_template.dev_template.update_pyproject_toml")
+    @patch("dev_template.dev_template.get_installed_packages")
+    @patch("tqdm.tqdm")
+    def test_update_dependency_files_without_pyproject(
+        self,
+        mock_tqdm,
+        mock_get_installed_packages,
+        mock_update_pyproject_toml,
+        mock_update_requirements_txt,
+    ):
+        global CREATE_PYPROJECT
+        with patch("dev_template.dev_template.CREATE_PYPROJECT", False):
+            full_project_path = "/mock/project/path"
+
+            mock_get_installed_packages.return_value = {
+                "pkg1": "1.0.0",
+                "pkg2": "2.0.0",
+            }
+
+            update_dependency_files(full_project_path)
+
+            mock_update_requirements_txt.assert_called_once_with(
+                os.path.join(full_project_path, "requirements.txt"),
+                {"pkg1": "1.0.0", "pkg2": "2.0.0"},
+            )
+            mock_update_pyproject_toml.assert_not_called()
 
 
 if __name__ == "__main__":
