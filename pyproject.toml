@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dev_template"
-version = "1.1.5"
+version = "1.1.6"
 description = "A streamlined tool for quickly setting up Python project directories with simplicity and speed. Ideal for developers and hobbyists, dev_template offers interactive prompts, cross-platform compatibility, and robust configuration management to ensure a consistent project structure and efficient dependency management."
 readme = "README.md"
 requires-python = ">=3.6"

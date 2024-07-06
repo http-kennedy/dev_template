@@ -297,7 +297,7 @@ def create_project_structure(config: ProjectConfig) -> None:
     )
 
     if successful_packages:
-        write_successful_packages_to_files(full_project_path)
+        update_dependency_files(full_project_path)
 
 
 def create_project_directory(full_project_path: str) -> None:
@@ -439,15 +439,17 @@ def update_pyproject_toml(file_path: str, package_versions: Dict[str, str]) -> N
                     )
 
 
-def write_successful_packages_to_files(full_project_path: str) -> None:
+def update_dependency_files(full_project_path: str) -> None:
     project_name = Path(full_project_path).name
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     package_versions = get_installed_packages(venv_path)
 
     file_paths = {
         "requirements.txt": os.path.join(full_project_path, "requirements.txt"),
-        "pyproject.toml": os.path.join(full_project_path, "pyproject.toml"),
     }
+
+    if CREATE_PYPROJECT:
+        file_paths["pyproject.toml"] = os.path.join(full_project_path, "pyproject.toml")
 
     print()
     with tqdm(
@@ -457,7 +459,8 @@ def write_successful_packages_to_files(full_project_path: str) -> None:
         leave=True,
     ) as progress_bar:
         update_requirements_txt(file_paths["requirements.txt"], package_versions)
-        update_pyproject_toml(file_paths["pyproject.toml"], package_versions)
+        if "pyproject.toml" in file_paths:
+            update_pyproject_toml(file_paths["pyproject.toml"], package_versions)
         progress_bar.update(len(file_paths))
     logging.info("Updated files with successful packages.")
     print("Updated files with successful packages.\n")
@@ -545,7 +548,7 @@ def main() -> None:
         )
 
         print(
-            f"\nProject '{project_name}' created successfully at '{full_project_path}'."
+            f"Project '{project_name}' created successfully at '{full_project_path}'."
         )
 
     except KeyboardInterrupt:

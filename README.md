@@ -205,9 +205,9 @@ The `dev_template` tool can be ran with various flags to perform different actio
   * Enables debug logging for more detailed output during execution.
   * **Log File Locations**
     * Linux/macOS:
-      * Log files: ~/.config/dev_template/logs
+      * Log files: `~/.config/dev_template/logs`
     * Windows:
-      * Log files: %LOCALAPPDATA%\dev_template\logs
+      * Log files: `%LOCALAPPDATA%\dev_template\logs`
 
 ## Configuration Mode
 
@@ -247,12 +247,12 @@ When in configuration mode you can set the following values:
 **Configuration File Locations**
 
 * Linux/macOS:
-  * Configuration file: ~/.config/dev_template/config.ini
-  * Templates directory: ~/.config/dev_template/templates/
+  * Configuration file: `~/.config/dev_template/config.ini`
+  * Templates directory: `~/.config/dev_template/templates/`
 
 * Windows:
-  * Configuration file: %LOCALAPPDATA%\dev_template\config.ini
-  * Templates directory: %LOCALAPPDATA%\dev_template\templates\
+  * Configuration file: `%LOCALAPPDATA%\dev_template\config.ini`
+  * Templates directory: `%LOCALAPPDATA%\dev_template\templates\`
 
 ### Customizing Templates
 
@@ -286,8 +286,6 @@ When in configuration mode you can set the following values:
 * pyproject.toml: The `dependencies` section must be present in the `pyproject.toml` file. The absence of this section can cause installation issues.
 
 * Config Template Directory: Problems may arise if not all expected files are present in the templates directory. Ensure that all necessary template files are included to avoid errors.
-  * Workaround: Delete`config directory` and re-run `dev_template`.
-    * For Linux/macOS:
-      * `~/.config/dev_template`
-    * For Windows:
-      * `%LOCALAPPDATA%\dev_template`
+  * Workaround: **Delete** `config directory` and re-run `dev_template`.
+    * For Linux/macOS: `~/.config/dev_template`
+    * For Windows: `%LOCALAPPDATA%\dev_template`
