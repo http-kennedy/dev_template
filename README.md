@@ -40,6 +40,7 @@ _this tool is for those of us that are lazy_
 
 * **Package Management:**
   * Installs packages specified by the user or from the default configuration.
+  * Allows specifying exact package versions during creation.
   * Updates `requirements.txt` and `pyproject.toml` with successfully installed packages and their versions.
 
 * **Error Handling:**
@@ -54,7 +55,7 @@ _this tool is for those of us that are lazy_
 
 ## Example Project Structure
 
-```
+```shell
 project
 ├── project_venv
 ├── src
@@ -76,19 +77,19 @@ project
 
 To install the package using pip, run the following command:
 
-```
+```shell
 pip install dev-template
 ```
 
 Once installed, you can start the tool by typing the following command in your terminal:
 
-```
+```shell
 dev_template
 ```
 
 Alternatively, you can run it as a Python module:
 
-```
+```shell
 python -m dev_template.dev_template
 ```
 
@@ -98,19 +99,19 @@ After setting up your project, navigate into the project directory and activate 
 
 For Linux/macOS:
 
-```
+```shell
 source project_venv/bin/activate
 ```
 
 For Windows (Powershell):
 
-```
+```shell
 .\project_venv\Scripts\Activate.ps1
 ```
 
 To deactivate the virtual environment, simply type:
 
-```
+```shell
 deactivate
 ```
 
@@ -120,7 +121,7 @@ deactivate
 
 * On MacOS/Linux:
 
-```
+```batch
 git clone https://github.com/http-kennedy/dev_template.git
 cd dev_template
 python -m venv venv
@@ -129,7 +130,7 @@ source venv/bin/activate
 
 * On Windows (Powershell):
 
-```
+```batch
 git clone https://github.com/http-kennedy/dev_template.git
 cd dev_template
 python -m venv venv
@@ -138,7 +139,7 @@ python -m venv venv
 
 2. Install the requirements:
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
@@ -146,25 +147,25 @@ pip install -r requirements.txt
 
 * For interactive development (editable mode):
 
-```
+```shell
 pip install -e .
 ```
 
 * To install directly:
 
-```
+```shell
 pip install .
 ```
 
 Once installed, you can start the tool by typing the following command in your terminal:
 
-```
+```shell
 dev_template
 ```
 
 Alternatively, you can run the script directly:
 
-```
+```shell
 python src/dev_template/dev_template.py
 ```
 
@@ -174,7 +175,7 @@ After setting up your project, navigate into the project directory and activate 
 
 For Linux/macOS:
 
-```
+```batch
 source project_venv/bin/activate
 ```
 
@@ -186,7 +187,7 @@ For Windows (Powershell):
 
 To deactivate the virtual environment, simply type:
 
-```
+```shell
 deactivate
 ```
 
@@ -212,13 +213,13 @@ The `dev_template` tool can be ran with various flags to perform different actio
 
 The `dev_template` tool offers a configuration mode to customize default settings. You can enter configuration mode by running:
 
-```
+```shell
 dev_template -c
 ```
 
 or
 
-```
+```shell
 dev_template --config
 ```
 
@@ -227,6 +228,9 @@ When in configuration mode you can set the following values:
 * Default packages to install:
   * Packages must be `commma delimited`.
   * Can be modified during normal execution of `dev_template`
+  * If defining a specific version use pip's version specifier syntax.
+    * `'package_name'=='version'`
+    * For example: ```pandas==2.1.4```
 
 * Absolute path for default project directory creation:
   * Sets default input for where to create the project.
@@ -250,7 +254,40 @@ When in configuration mode you can set the following values:
   * Configuration file: %LOCALAPPDATA%\dev_template\config.ini
   * Templates directory: %LOCALAPPDATA%\dev_template\templates\
 
-Customizing Templates
+### Customizing Templates
 
 * If you replace or modify any of the template files in the templates directory using the **same filename/s**, the customized files will be used during project setup.
-  * **_IMPORTANT NOTE: There is currently a bug that requires the `dependencies` section to be present in the `pyproject.toml` file. Make sure to include this section to avoid issues._**
+
+## Roadmap
+
+### Improvements
+
+* **Logging Wrapper**: Implement a standardized logging wrapper.
+* **Typer Package**: Enhance the command-line interface using the `typer` package.
+
+### Features to Add
+
+* Store virtual environments in the project directory or a user-specified location.
+* Add version management and update notifications.
+* Add an argument to remake the configuration directory.
+* Allow custom project structures via the templates directory.
+
+### NOTES TO REMEBER
+
+----------------------
+* If you need to install a specific package verison, use pip's version specifier syntax.
+  * `'package_name'=='version'`
+  * For example: ```pandas==2.1.4```
+
+### KNOWN ISSUES
+
+----------------------
+
+* pyproject.toml: The `dependencies` section must be present in the `pyproject.toml` file. The absence of this section can cause installation issues.
+
+* Config Template Directory: Problems may arise if not all expected files are present in the templates directory. Ensure that all necessary template files are included to avoid errors.
+  * Workaround: Delete`config directory` and re-run `dev_template`.
+    * For Linux/macOS:
+      * `~/.config/dev_template`
+    * For Windows:
+      * `%LOCALAPPDATA%\dev_template`

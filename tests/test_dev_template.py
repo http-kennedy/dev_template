@@ -240,10 +240,9 @@ class TestDevTemplate(unittest.TestCase):
     @patch("logging.info")
     def test_update_requirements_txt(self, mock_logging_info, mock_open):
         file_path = "/mock/requirements.txt"
-        successful_packages = ["pkg1", "pkg2"]
         package_versions = {"pkg1": "1.0.0", "pkg2": "2.0.0"}
 
-        update_requirements_txt(file_path, successful_packages, package_versions)
+        update_requirements_txt(file_path, package_versions)
 
         handle = mock_open()
         handle.write.assert_any_call("pkg1==1.0.0\n")
@@ -253,10 +252,9 @@ class TestDevTemplate(unittest.TestCase):
     @patch("logging.info")
     def test_update_pyproject_toml(self, mock_logging_info, mock_open):
         file_path = "/mock/pyproject.toml"
-        successful_packages = ["pkg1", "pkg2"]
         package_versions = {"pkg1": "1.0.0", "pkg2": "2.0.0"}
 
-        update_pyproject_toml(file_path, successful_packages, package_versions)
+        update_pyproject_toml(file_path, package_versions)
 
         handle = mock_open()
         handle.write.assert_any_call('    "pkg1==1.0.0",\n')
@@ -274,23 +272,17 @@ class TestDevTemplate(unittest.TestCase):
         mock_update_requirements_txt,
     ):
         full_project_path = "/mock/project/path"
-        project_name = "mock_project"
-        successful_packages = ["pkg1", "pkg2"]
 
         mock_get_installed_packages.return_value = {"pkg1": "1.0.0", "pkg2": "2.0.0"}
 
-        write_successful_packages_to_files(
-            full_project_path, project_name, successful_packages
-        )
+        write_successful_packages_to_files(full_project_path)
 
         mock_update_requirements_txt.assert_called_once_with(
             os.path.join(full_project_path, "requirements.txt"),
-            successful_packages,
             {"pkg1": "1.0.0", "pkg2": "2.0.0"},
         )
         mock_update_pyproject_toml.assert_called_once_with(
             os.path.join(full_project_path, "pyproject.toml"),
-            successful_packages,
             {"pkg1": "1.0.0", "pkg2": "2.0.0"},
         )
 

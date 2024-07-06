@@ -85,7 +85,8 @@ def initialize_globals() -> None:
 
 
 def clean_package_list(packages: str) -> List[str]:
-    return [package.strip() for package in packages.split(",") if package.strip()]
+    package_list = re.split(r"[, ]+", packages.strip())
+    return [package.strip() for package in package_list if package.strip()]
 
 
 def get_config_path() -> str:
@@ -296,9 +297,7 @@ def create_project_structure(config: ProjectConfig) -> None:
     )
 
     if successful_packages:
-        write_successful_packages_to_files(
-            full_project_path, config.project_name, successful_packages
-        )
+        write_successful_packages_to_files(full_project_path)
 
 
 def create_project_directory(full_project_path: str) -> None:
@@ -360,7 +359,7 @@ def create_virtualenv(full_project_path: str, project_name: str) -> None:
         subprocess.check_call([sys.executable, "-m", "venv", venv_path])
         progress_bar.update(1)
     logging.info(f'Virtual environment created at "{venv_path}"')
-    print("Created virtual environment.\n")
+    print(f"Created virtual environment at -> '{venv_path}' <-\n")
 
 
 def install_packages(
@@ -403,7 +402,7 @@ def install_packages(
     if failed_packages:
         failed_packages_str = ", ".join(failed_packages)
         logging.error(f"Failed to install packages: {failed_packages_str}")
-        print(f"Failed to install packages: {failed_packages_str}")
+        print(f"\n-> ERROR: Failed to install package/s: '{failed_packages_str}' <-")
 
     return successful_packages
 
@@ -416,21 +415,16 @@ def get_installed_packages(venv_path: str) -> Dict[str, str]:
     return dict(line.split("==") for line in freeze_output.splitlines())
 
 
-def update_requirements_txt(
-    file_path: str, successful_packages: List[str], package_versions: Dict[str, str]
-) -> None:
+def update_requirements_txt(file_path: str, package_versions: Dict[str, str]) -> None:
     with open(file_path, "a") as f:
-        for package in successful_packages:
-            if package in package_versions:
-                f.write(f"{package}=={package_versions[package]}\n")
-                logging.info(
-                    f'Updated requirements.txt with package "{package}=={package_versions[package]}"'
-                )
+        for package, version in package_versions.items():
+            f.write(f"{package}=={version}\n")
+            logging.info(
+                f'Updated requirements.txt with package "{package}=={version}"'
+            )
 
 
-def update_pyproject_toml(
-    file_path: str, successful_packages: List[str], package_versions: Dict[str, str]
-) -> None:
+def update_pyproject_toml(file_path: str, package_versions: Dict[str, str]) -> None:
     with open(file_path, "r") as f:
         lines = f.readlines()
 
@@ -438,30 +432,17 @@ def update_pyproject_toml(
         for line in lines:
             f.write(line)
             if line.strip() == "dependencies = [":
-                for package in successful_packages:
-                    if package in package_versions:
-                        f.write(f'    "{package}=={package_versions[package]}"' + ",\n")
-                        logging.info(
-                            f'Updated pyproject.toml with package "{package}=={package_versions[package]}"'
-                        )
+                for package, version in package_versions.items():
+                    f.write(f'    "{package}=={version}",\n')
+                    logging.info(
+                        f'Updated pyproject.toml with package "{package}=={version}"'
+                    )
 
 
-def write_successful_packages_to_files(
-    full_project_path: str, project_name: str, successful_packages: List[str]
-) -> None:
+def write_successful_packages_to_files(full_project_path: str) -> None:
+    project_name = Path(full_project_path).name
     venv_path = os.path.join(full_project_path, f"{project_name}_venv")
     package_versions = get_installed_packages(venv_path)
-
-    files_to_update = {
-        "requirements.txt": (
-            update_requirements_txt,
-            [successful_packages, package_versions],
-        ),
-        "pyproject.toml": (
-            update_pyproject_toml,
-            [successful_packages, package_versions],
-        ),
-    }
 
     file_paths = {
         "requirements.txt": os.path.join(full_project_path, "requirements.txt"),
@@ -470,14 +451,14 @@ def write_successful_packages_to_files(
 
     print()
     with tqdm(
-        total=len(files_to_update),
+        total=len(file_paths),
         desc="Writing successful packages to files...",
         ncols=100,
         leave=True,
     ) as progress_bar:
-        for file, (update_function, args) in files_to_update.items():
-            update_function(file_paths[file], *args)
-            progress_bar.update(1)
+        update_requirements_txt(file_paths["requirements.txt"], package_versions)
+        update_pyproject_toml(file_paths["pyproject.toml"], package_versions)
+        progress_bar.update(len(file_paths))
     logging.info("Updated files with successful packages.")
     print("Updated files with successful packages.\n")
 

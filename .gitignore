@@ -138,5 +138,5 @@ cython_debug/
 .vscode/
 
 # Personal
-notes
+notes.txt
 src/dev_template.egg-info/
