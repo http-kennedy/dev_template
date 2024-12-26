@@ -1,3 +1,7 @@
+# ⚠️ !NOTE! Consider Using UV Instead
+
+For an even better experience in Python development, check out [UV](https://github.com/astral-sh/uv). It’s a more powerful and versatile tool that i highly recommend. I will keep this repository publicly available for those who on the off chance may wish to adapt or build upon it. I will continue to make updates for myself if I find more use cases or get bored.
+
 # Why?
 
 The `dev_template` tool is designed with simplicity and speed in mind, providing a streamlined approach to setting up new Python projects. Unlike other feature-rich tools, `dev_template` focuses on quick development, allowing you to get started without the need to wade through extensive documentation (_hopefully_).
